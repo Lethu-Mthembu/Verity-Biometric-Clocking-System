@@ -168,6 +168,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const faceCheckStartedRef = useRef(false)
+  const waitForFaceToLeaveRef = useRef(false)
   const [now, setNow] = useState(new Date());
   const [otp, setOtp] = useState('');
   const [modal, setModal] = useState(null);
@@ -226,6 +227,17 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
       faceCheckStartedRef.current = true   // lock so this doesn't run again until finished
       const { descriptor, message } = await captureFrame()   // get the 128-number descriptor from the current frame
 
+      if (waitForFaceToLeaveRef.current) {
+        if (!descriptor) {
+          waitForFaceToLeaveRef.current = false
+          setFaceStatus('Ready for the next scan.')
+        } else {
+          setFaceStatus('Step away from the camera to re-arm the kiosk.')
+        }
+        faceCheckStartedRef.current = false
+        return
+      }
+
       if (!descriptor) {
         faceCheckStartedRef.current = false   // unlock so the next interval tick can try again
         setFaceStatus(message)   // show why it didn't work (camera starting / no face)
@@ -247,6 +259,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
           setMatchedEmployee({ name, employeeNumber: result.employeeNumber })
 
           if (result.clockType === 'ClockOut' && result.clockedOut) {
+            waitForFaceToLeaveRef.current = true
             setSuccessClockType('ClockOut')
             setSuccess(true)
             return
@@ -320,6 +333,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
       }
 
       setSuccessClockType('ClockIn')
+      waitForFaceToLeaveRef.current = true
       setSuccess(true)   // only fires once the backend explicitly confirmed a valid OTP
     } catch (error) {
       setVerifying(false)   // stop the "checking" state
