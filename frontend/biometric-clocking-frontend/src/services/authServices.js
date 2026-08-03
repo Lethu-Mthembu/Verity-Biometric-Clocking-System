@@ -20,6 +20,22 @@ API.interceptors.request.use((config) => {
     return config;
 });
 
+// A token can outlive the deployment that issued it. Clear it when a
+// protected request is rejected so the dashboard does not remain open while
+// its admin notification requests and stream are silently unauthorized.
+API.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401 && localStorage.getItem("token")) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("userId");
+            localStorage.removeItem("role");
+        }
+
+        return Promise.reject(error);
+    }
+);
+
 export const login = async (loginData) => {
     const response = await API.post("/Auth/login", loginData);
     return response.data;

@@ -6,6 +6,7 @@ using BiometricClockingSystem.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace BiometricClockingSystem.Api.Controllers;
 
@@ -126,7 +127,11 @@ public class AdminOverrideController : ControllerBase
     [HttpPost("override-requests/{id:int}/resolve")]
     public async Task<IActionResult> Resolve(int id)
     {
-        var adminIdValue = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        // JwtBearer maps the registered `sub` claim to NameIdentifier by
+        // default. Support both forms so the admin identity is resolved
+        // consistently across hosting/runtime versions.
+        var adminIdValue = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(adminIdValue, out var adminId))
             return Unauthorized(new { success = false, message = "Invalid administrator identity." });
 
