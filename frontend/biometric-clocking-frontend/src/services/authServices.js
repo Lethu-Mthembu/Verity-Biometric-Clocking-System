@@ -30,6 +30,10 @@ API.interceptors.response.use(
             localStorage.removeItem("token");
             localStorage.removeItem("userId");
             localStorage.removeItem("role");
+
+            if (["/admin", "/dashboard", "/hr"].includes(window.location.pathname)) {
+                window.location.assign("/kiosk");
+            }
         }
 
         return Promise.reject(error);
