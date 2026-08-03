@@ -1,0 +1,6 @@
+@BiometricClockingSystem.Api_HostAddress = http://localhost:5160
+
+GET {{BiometricClockingSystem.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

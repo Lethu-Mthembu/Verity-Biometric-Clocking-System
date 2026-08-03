@@ -1,0 +1,18 @@
+# .NET build output
+**/bin/
+**/obj/
+.vs/
+*.user
+
+# Frontend dependencies and builds
+**/node_modules/
+**/dist/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Archives and local editor files
+*.zip
+.DS_Store
