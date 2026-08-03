@@ -42,6 +42,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 context.Token = context.Request.Query["access_token"];
 
             return Task.CompletedTask;
+        },
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("JwtBearer");
+
+            logger.LogWarning(
+                context.Exception,
+                "JWT authentication failed for {Path}",
+                context.Request.Path);
+
+            return Task.CompletedTask;
         }
     };
 });
