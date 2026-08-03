@@ -78,9 +78,10 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "http://localhost:5173",
-            "https://biometricregister.netlify.app",
-            "https://biometriclockinsystem.netlify.app",
-            "http://127.0.0.1:5173"
+                "https://biometricregister.netlify.app",
+                "https://biometriclockinsystem.netlify.app",
+                "https://biometric-attendance-side-web.onrender.com",
+                "http://127.0.0.1:5173"
         )
             .AllowAnyHeader()
             .AllowAnyMethod();
