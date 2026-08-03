@@ -14,6 +14,7 @@ namespace BiometricClockingSystem.Api.Controllers;
 [Route("api/admin")]
 public class AdminOverrideController : ControllerBase
 {
+    private static readonly JsonSerializerOptions SseJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ApplicationDbContext _context;
     private readonly IAttendanceService _attendanceService;
     private readonly AdminNotificationService _notifications;
@@ -109,7 +110,7 @@ public class AdminOverrideController : ControllerBase
             await foreach (var notification in subscription.Reader.ReadAllAsync(cancellationToken))
             {
                 await Response.WriteAsync("event: override-request\n", cancellationToken);
-                await Response.WriteAsync($"data: {JsonSerializer.Serialize(notification)}\n\n", cancellationToken);
+                await Response.WriteAsync($"data: {JsonSerializer.Serialize(notification, SseJsonOptions)}\n\n", cancellationToken);
                 await Response.Body.FlushAsync(cancellationToken);
             }
         }
