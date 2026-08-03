@@ -359,9 +359,9 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
         <div>
           <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl">
             Welcome.<br />
-            <span className="text-sky-300">Let's get you checked in.</span>
+            <span className="text-sky-300">Let's get you checked in or out.</span>
           </h1>
-          <p className="mt-5 max-w-md text-lg font-bold leading-7 text-white">Position your face within the frame and enter the 6-digit OTP.</p>
+          <p className="mt-5 max-w-md text-lg font-bold leading-7 text-white">Scan your face to clock out. Clock-in requires the 6-digit OTP.</p>
         </div>
 
         <div className="overflow-hidden rounded-2xl bg-[#0d2035] border border-sky-700 shadow-2xl shadow-black/30">
@@ -386,7 +386,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
           <div className="bg-[#eef4fc]">
             <div className="flex items-center justify-between p-5">
               <div>
-                <p className="text-lg font-bold tracking-widest text-[#2b2f36]">ENTER ACCESS OTP</p>
+                <p className="text-lg font-bold tracking-widest text-[#2b2f36]">ENTER CLOCK-IN OTP</p>
                 <div className="mt-3 flex gap-1.5">
                   {[0, 1, 2, 3, 4, 5].map(i => (
                     <span key={i} className={`grid h-7 w-6 place-items-center rounded border ${otp[i] ? 'border-sky-500 bg-sky-600 text-white' : 'border-slate-300 bg-white text-slate-400'}`}>
