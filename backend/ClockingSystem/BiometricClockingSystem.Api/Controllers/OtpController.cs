@@ -19,6 +19,9 @@ public sealed class OtpController : ControllerBase
     [HttpPost("challenge")]
     public async Task<IActionResult> CreateChallenge([FromBody] CreateOtpChallengeRequest request)
     {
+        if (request.ClockType != ClockType.ClockIn)
+            return BadRequest(new { message = "OTP is only required for clock-in." });
+
         if (!await _context.Employees.AnyAsync(e => e.EmployeeNumber == request.EmployeeNumber && e.IsActive))
             return NotFound(new { message = "Active employee not found." });
         OtpChallenge challenge;
@@ -56,12 +59,13 @@ public sealed class OtpController : ControllerBase
             return BadRequest(new { valid = false, message = "The verification code has expired or is invalid." });
         }
 
+        if (challenge.ClockType != ClockType.ClockIn)
+            return BadRequest(new { valid = false, message = "OTP is only required for clock-in." });
+
         var code = string.IsNullOrWhiteSpace(request.Code) ? request.Otp : request.Code;
         var result = await _otpService.VerifyAsync(challenge.Id, code);
         if (!result.Succeeded) return BadRequest(new { valid = false, message = result.Error });
-        var session = challenge.ClockType == ClockType.ClockIn
-            ? await _attendanceService.ClockInAsync(challenge.EmployeeId, ClockAuthMethod.Face)
-            : await _attendanceService.ClockOutAsync(challenge.EmployeeId, ClockAuthMethod.Face);
+        var session = await _attendanceService.ClockInAsync(challenge.EmployeeId, ClockAuthMethod.Face);
         if (session is null) return Conflict(new { valid = false, message = "No active clock-in session was found." });
         return Ok(new { success = true, valid = true, employeeId = challenge.EmployeeId, clockType = challenge.ClockType, attendanceSessionId = session.AttendanceId });
     }

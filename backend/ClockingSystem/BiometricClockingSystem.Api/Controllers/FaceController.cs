@@ -14,15 +14,18 @@ public sealed class FaceController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IFacialRecognitionService _facialRecognitionService;
     private readonly IOtpService _otpService;
+    private readonly IAttendanceService _attendanceService;
 
     public FaceController(
         ApplicationDbContext context,
         IFacialRecognitionService facialRecognitionService,
-        IOtpService otpService)
+        IOtpService otpService,
+        IAttendanceService attendanceService)
     {
         _context = context;
         _facialRecognitionService = facialRecognitionService;
         _otpService = otpService;
+        _attendanceService = attendanceService;
     }
 
     // Kiosk login. The browser creates a descriptor locally; this action only
@@ -75,10 +78,42 @@ public sealed class FaceController : ControllerBase
         if (matchedEmployee is null)
             return Ok(new { exists = false, matched = false, message = "Face not found." });
 
+        // An active session means this face scan is a clock-out. Clock-out is
+        // deliberately face-only; OTP is required only for clock-in.
+        var hasActiveSession = await _context.Attendances
+            .AsNoTracking()
+            .AnyAsync(attendance => attendance.EmployeeNumber == matchedEmployee.EmployeeNumber && attendance.IsActive);
+
+        if (hasActiveSession)
+        {
+            var session = await _attendanceService.ClockOutAsync(
+                matchedEmployee.EmployeeNumber,
+                ClockAuthMethod.Face);
+
+            if (session is null)
+                return Conflict(new { exists = true, matched = true, message = "No active clock-in session was found." });
+
+            return Ok(new
+            {
+                exists = true,
+                matched = true,
+                clockType = ClockType.ClockOut,
+                clockedOut = true,
+                fname = matchedEmployee.FirstName,
+                lastname = matchedEmployee.LastName,
+                employeeId = matchedEmployee.EmployeeNumber,
+                employeeNumber = matchedEmployee.EmployeeNumber,
+                employee = new { id = matchedEmployee.EmployeeNumber, fname = matchedEmployee.FirstName, lastname = matchedEmployee.LastName, department = matchedEmployee.Department },
+                confidence = Math.Round(bestConfidence, 4),
+                otpSent = false,
+                message = "Face verified. Clock-out recorded."
+            });
+        }
+
         OtpChallenge otpChallenge;
         try
         {
-            otpChallenge = await _otpService.CreateAsync(matchedEmployee.EmployeeNumber, clockType);
+            otpChallenge = await _otpService.CreateAsync(matchedEmployee.EmployeeNumber, ClockType.ClockIn);
         }
         catch (OtpDeliveryException exception)
         {
@@ -95,6 +130,7 @@ public sealed class FaceController : ControllerBase
             employeeNumber = matchedEmployee.EmployeeNumber,
             employee = new { id = matchedEmployee.EmployeeNumber, fname = matchedEmployee.FirstName, lastname = matchedEmployee.LastName, department = matchedEmployee.Department },
             confidence = Math.Round(bestConfidence, 4),
+            clockType = ClockType.ClockIn,
             otpChallengeId = otpChallenge.Id,
             otpExpiresAt = otpChallenge.ExpiresAt,
             otpSent = true,

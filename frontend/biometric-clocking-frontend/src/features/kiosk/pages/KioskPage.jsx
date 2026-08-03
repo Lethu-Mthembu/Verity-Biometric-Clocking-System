@@ -132,7 +132,7 @@ function NoticeModal({ message, onClose }) {
   )
 }
 
-function Success({ employee }) {
+function Success({ employee, clockType }) {
   const [count, setCount] = useState(3);
   useEffect(() => {
     const countdown = setInterval(() => {
@@ -148,7 +148,7 @@ function Success({ employee }) {
         <Check size={65} strokeWidth={3} />
       </div>
       <p className="mt-8 text-xs font-semibold text-emerald-300">IDENTITY VERIFIED</p>
-      <h1 className="mt-3 text-4xl font-bold tracking-tight text-white">Successfully Clocked In</h1>
+      <h1 className="mt-3 text-4xl font-bold tracking-tight text-white">Successfully Clocked {clockType === 'ClockOut' ? 'Out' : 'In'}</h1>
       <div className="mx-auto mt-7 flex w-full max-w-sm items-center gap-3 rounded-xl bg-[#eef4fc] p-4">
         <div className="flex-1 text-left">
           <b className="block text-xl text-[#071525]">{employee?.name}</b>
@@ -176,6 +176,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
   const [cameraRetryKey, setCameraRetryKey] = useState(0);
   const [faceStatus, setFaceStatus] = useState('Looking for face...');
   const [success, setSuccess] = useState(false);
+  const [successClockType, setSuccessClockType] = useState('ClockIn');
   const [otpChallengeId, setOtpChallengeId] = useState(null)
   const [matchedEmployeeNumber, setMatchedEmployeeNumber] = useState(null)
   const [matchedEmployee, setMatchedEmployee] = useState(null)
@@ -184,6 +185,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
 
   const resetToKiosk = () => {
     setSuccess(false);
+    setSuccessClockType('ClockIn');
     setOtp('');
     setVerifying(false);
     setModal(null);
@@ -243,6 +245,12 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
           setOtpChallengeId(result.otpChallengeId)
           setMatchedEmployeeNumber(result.employeeNumber)
           setMatchedEmployee({ name, employeeNumber: result.employeeNumber })
+
+          if (result.clockType === 'ClockOut' && result.clockedOut) {
+            setSuccessClockType('ClockOut')
+            setSuccess(true)
+            return
+          }
         } else {
           setFaceStatus('Face not found')   // no match — keep trying
           faceCheckStartedRef.current = false   // unlock so it retries on the next interval
@@ -294,7 +302,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
     return () => clearTimeout(t)
   }, [success])
 
-  if (success) return <Success employee={matchedEmployee} />
+  if (success) return <Success employee={matchedEmployee} clockType={successClockType} />
 
   const add = n => setOtp(v => v.length < 6 ? v + n : v)
 
@@ -311,6 +319,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
         return
       }
 
+      setSuccessClockType('ClockIn')
       setSuccess(true)   // only fires once the backend explicitly confirmed a valid OTP
     } catch (error) {
       setVerifying(false)   // stop the "checking" state
