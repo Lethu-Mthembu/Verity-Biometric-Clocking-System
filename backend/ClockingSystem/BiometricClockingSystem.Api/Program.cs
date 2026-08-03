@@ -66,8 +66,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
    // BiometricClockingSystem.Api.Services.FacialRecognitionService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
-builder.Services.Configure<BiometricClockingSystem.Api.Services.TwilioOptions>(
-    builder.Configuration.GetSection("Twilio"));
+builder.Services.Configure<BiometricClockingSystem.Api.Services.GmailOptions>(
+    builder.Configuration.GetSection(BiometricClockingSystem.Api.Services.GmailOptions.SectionName));
 builder.Services.AddScoped<BiometricClockingSystem.Api.Services.IOtpService, BiometricClockingSystem.Api.Services.OtpService>();
 builder.Services.AddScoped<BiometricClockingSystem.Api.Services.IAttendanceService, BiometricClockingSystem.Api.Services.AttendanceService>();
 builder.Services.AddSingleton<AdminNotificationService>();
