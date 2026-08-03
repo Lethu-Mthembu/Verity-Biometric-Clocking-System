@@ -129,6 +129,13 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Initialize the independent side-project database on startup.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    db.Database.Migrate();
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
