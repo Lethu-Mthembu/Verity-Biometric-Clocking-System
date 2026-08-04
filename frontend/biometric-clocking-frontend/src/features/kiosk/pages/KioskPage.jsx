@@ -77,25 +77,26 @@ function AdminLogin({ onClose, onLogin }) {
 
 
 function CallAdmin({ onClose, onNotify }) {
-  const [employeeNumber, setEmployeeNumber] = useState('')   // the ID typed into the field
+  const [employeeNumber, setEmployeeNumber] = useState('')   // the four digits typed after the fixed EMP- prefix
   const [submitting, setSubmitting] = useState(false)   // true while the request is in flight
   const [error, setError] = useState('')   // holds an error message if the request fails
 
   const handleNotify = async () => {
-    const trimmedNumber = employeeNumber.trim()   // strip whitespace before sending
-    if (!trimmedNumber || submitting) return   // don't submit empty or duplicate requests
+    if (!/^\d{4}$/.test(employeeNumber) || submitting) return   // require the four employee-number digits
+
+    const fullEmployeeNumber = `EMP-${employeeNumber}`
 
     setSubmitting(true)   // show "Notifying admin…" state
     setError('')   // clear any previous error
 
     try {
       const response = await API.post('/admin/notify', {
-        employeeNumber: trimmedNumber,
+        employeeNumber: fullEmployeeNumber,
         reason: 'Face recognition failed.'
       })
 
       onNotify(
-        trimmedNumber,
+        fullEmployeeNumber,
         response.data.overrideRequestId,
         response.data.requestedClockType
       )
@@ -109,14 +110,22 @@ function CallAdmin({ onClose, onNotify }) {
 
   return (
     <Modal onClose={onClose}>
-      <h2 className="text-xl font-bold text-white">Admin notified... Please wait</h2>
+      <h2 className="text-xl font-bold text-white">Admin Override Request</h2>
       <label className="mt-6 block text-[10px] font-bold">EMPLOYEE NUMBER</label>
-      <input value={employeeNumber} onChange={e => setEmployeeNumber(e.target.value)} className="mt-2 w-full rounded-lg bg-[#09192c] px-3 py-3 text-sm outline-none" placeholder="EMP-1042" />
-      <div className="my-6 rounded-lg bg-[#09192c] p-4 text-sky-300">
-        <b className="text-sm text-white">status must change from clocked in or out whithe user waits</b>
+      <div className="mt-2 flex w-full items-center rounded-lg bg-[#09192c] px-3 py-3 text-sm">
+        <span className="font-bold text-sky-300">EMP-</span>
+        <input
+          value={employeeNumber}
+          onChange={e => setEmployeeNumber(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          className="min-w-0 flex-1 bg-transparent pl-1 outline-none"
+          inputMode="numeric"
+          maxLength={4}
+          placeholder="1042"
+          aria-label="Four digit employee number"
+        />
       </div>
       {error && <p className="mb-3 text-xs font-bold text-rose-400">{error}</p>}   {/* visible failure state instead of silently faking success */}
-      <button disabled={!employeeNumber.trim() || submitting} onClick={handleNotify} className="w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white disabled:opacity-40">
+      <button disabled={!/^\d{4}$/.test(employeeNumber) || submitting} onClick={handleNotify} className="mt-6 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white disabled:opacity-40">
         {submitting ? 'Notifying admin…' : 'Notify admin'}
       </button>
     </Modal>
