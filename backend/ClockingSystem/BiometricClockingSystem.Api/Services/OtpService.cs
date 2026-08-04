@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
 using BiometricClockingSystem.Api.Data;
@@ -7,6 +5,8 @@ using BiometricClockingSystem.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 
 namespace BiometricClockingSystem.Api.Services;
 
@@ -16,18 +16,21 @@ public sealed class OtpService : IOtpService
     private readonly ApplicationDbContext _context;
     private readonly IMemoryCache _cache;
     private readonly ILogger<OtpService> _logger;
-    private readonly GmailOptions _gmail;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly SendGridOptions _sendGrid;
 
     public OtpService(
         ApplicationDbContext context,
         IMemoryCache cache,
-        IOptions<GmailOptions> gmailOptions,
-        ILogger<OtpService> logger)
+        IOptions<SendGridOptions> sendGridOptions,
+        ILogger<OtpService> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _cache = cache;
-        _gmail = gmailOptions.Value;
+        _sendGrid = sendGridOptions.Value;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<OtpChallenge> CreateAsync(string employeeId, ClockType clockType)
@@ -39,9 +42,9 @@ public sealed class OtpService : IOtpService
 
         if (string.IsNullOrWhiteSpace(emailAddress))
             throw new OtpDeliveryException("The employee does not have an email address for OTP delivery.");
-        if (string.IsNullOrWhiteSpace(_gmail.SenderAddress) ||
-            string.IsNullOrWhiteSpace(_gmail.AppPassword))
-            throw new OtpDeliveryException("Gmail SMTP is not configured.");
+        if (string.IsNullOrWhiteSpace(_sendGrid.SenderAddress) ||
+            string.IsNullOrWhiteSpace(_sendGrid.ApiKey))
+            throw new OtpDeliveryException("SendGrid is not configured.");
 
         var id = Guid.NewGuid();
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
@@ -96,27 +99,61 @@ public sealed class OtpService : IOtpService
 
     private async Task SendEmailAsync(string emailAddress, string code)
     {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
         try
         {
-            using var message = new MailMessage(_gmail.SenderAddress, emailAddress)
-            {
-                Subject = "Your biometric attendance verification code",
-                Body = $"Your biometric attendance verification code is {code}. It expires in 5 minutes.",
-                IsBodyHtml = false
-            };
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "https://api.sendgrid.com/v3/mail/send");
 
-            using var smtpClient = new SmtpClient("smtp.gmail.com", 587)
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _sendGrid.ApiKey);
+            request.Content = JsonContent.Create(new
             {
-                EnableSsl = true,
-                UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(_gmail.SenderAddress, _gmail.AppPassword)
-            };
+                personalizations = new[]
+                {
+                    new
+                    {
+                        to = new[] { new { email = emailAddress } }
+                    }
+                },
+                from = new { email = _sendGrid.SenderAddress },
+                subject = "Your biometric attendance verification code",
+                content = new[]
+                {
+                    new
+                    {
+                        type = "text/plain",
+                        value = $"Your biometric attendance verification code is {code}. It expires in 1 minute."
+                    }
+                }
+            });
 
-            await smtpClient.SendMailAsync(message);
+            var client = _httpClientFactory.CreateClient();
+            using var response = await client.SendAsync(request, timeout.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var providerMessage = await response.Content.ReadAsStringAsync(timeout.Token);
+                _logger.LogWarning(
+                    "SendGrid rejected OTP email with status {StatusCode}: {ProviderMessage}",
+                    (int)response.StatusCode,
+                    providerMessage);
+                throw new OtpDeliveryException("The verification code could not be sent. Please try again.");
+            }
         }
-        catch (SmtpException exception)
+        catch (OtpDeliveryException)
         {
-            _logger.LogWarning(exception, "Gmail SMTP rejected OTP email delivery.");
+            throw;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            _logger.LogWarning("SendGrid OTP email delivery timed out.");
+            throw new OtpDeliveryException("The verification code could not be sent within 10 seconds. Please try again.");
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "SendGrid OTP email delivery failed.");
             throw new OtpDeliveryException("The verification code could not be sent. Please try again.");
         }
     }
