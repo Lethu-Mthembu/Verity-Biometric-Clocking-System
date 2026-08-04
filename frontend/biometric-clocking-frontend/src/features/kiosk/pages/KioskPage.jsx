@@ -164,7 +164,7 @@ function Success({ employee, clockType }) {
   )
 }
 
-export default function KioskPage({ onAdminAccess, onAdminCall }) {
+export default function KioskPage({ employees = [], onAdminAccess, onAdminCall }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const faceCheckStartedRef = useRef(false)
@@ -178,6 +178,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
   const [faceStatus, setFaceStatus] = useState('Looking for face...');
   const [success, setSuccess] = useState(false);
   const [successClockType, setSuccessClockType] = useState('ClockIn');
+  const [adminWaitingRequest, setAdminWaitingRequest] = useState(null);
   const [otpChallengeId, setOtpChallengeId] = useState(null)
   const [matchedEmployeeNumber, setMatchedEmployeeNumber] = useState(null)
   const [matchedEmployee, setMatchedEmployee] = useState(null)
@@ -187,6 +188,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
   const resetToKiosk = () => {
     setSuccess(false);
     setSuccessClockType('ClockIn');
+    setAdminWaitingRequest(null);
     setOtp('');
     setVerifying(false);
     setModal(null);
@@ -202,7 +204,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
   }, []);
 
   useEffect(() => {
-    if (success) return
+    if (success || adminWaitingRequest) return
 
     let stream
     let stopped = false
@@ -306,7 +308,44 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
       if (check) clearInterval(check)
       stream?.getTracks().forEach(track => track.stop())
     }
-  }, [cameraRetryKey, success]);
+  }, [cameraRetryKey, success, adminWaitingRequest]);
+
+  useEffect(() => {
+    if (!adminWaitingRequest?.overrideRequestId) return
+
+    let stopped = false
+    const checkOverrideStatus = async () => {
+      try {
+        const { data } = await API.get(`/admin/override-requests/${adminWaitingRequest.overrideRequestId}/status`, {
+          params: { employeeNumber: adminWaitingRequest.employeeNumber }
+        })
+
+        if (stopped || data.status !== 'Resolved') return
+
+        const employee = employees.find(item =>
+          item.id?.toLowerCase() === adminWaitingRequest.employeeNumber.toLowerCase()
+        )
+
+        setMatchedEmployee({
+          name: employee?.name || adminWaitingRequest.employeeNumber,
+          employeeNumber: adminWaitingRequest.employeeNumber
+        })
+        setSuccessClockType(adminWaitingRequest.requestedClockType)
+        setAdminWaitingRequest(null)
+        setSuccess(true)
+      } catch (error) {
+        if (!stopped) console.error('Could not check override status:', error)
+      }
+    }
+
+    checkOverrideStatus()
+    const interval = setInterval(checkOverrideStatus, 2000)
+
+    return () => {
+      stopped = true
+      clearInterval(interval)
+    }
+  }, [adminWaitingRequest, employees])
 
   useEffect(() => {
     if (!success) return
@@ -435,9 +474,11 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
       </footer>
 
       {modal === 'call' && <CallAdmin onClose={() => setModal(null)} onNotify={(employeeNumber, overrideRequestId, requestedClockType) => {
+        setAdminWaitingRequest({ employeeNumber, overrideRequestId, requestedClockType })
         onAdminCall(employeeNumber, overrideRequestId, requestedClockType);
         setModal(null)
       }} />}
+      {adminWaitingRequest && <NoticeModal message="Administrator notified. Please wait." onClose={() => setAdminWaitingRequest(null)} />}
       {modal === 'login' && <AdminLogin onClose={() => setModal(null)} onLogin={onAdminAccess} />}
       {modal === 'face-success' && <NoticeModal message="Face rec success...standby for otp" onClose={() => setModal(null)} />}
       {modal === 'otp-valid' && <NoticeModal message="OTP is valid for 45 seconds" onClose={() => setModal(null)} />}

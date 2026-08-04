@@ -96,6 +96,30 @@ public class AdminOverrideController : ControllerBase
         return Ok(pending);
     }
 
+    // The kiosk uses this read-only status check while an employee waits for
+    // an administrator. It does not authorize or resolve anything.
+    [AllowAnonymous]
+    [HttpGet("override-requests/{id:int}/status")]
+    public async Task<IActionResult> GetRequestStatus(int id, [FromQuery] string? employeeNumber)
+    {
+        var request = await _context.OverrideRequests
+            .AsNoTracking()
+            .Where(r => r.OverrideRequestId == id && r.EmployeeId == employeeNumber)
+            .Select(r => new
+            {
+                r.OverrideRequestId,
+                EmployeeNumber = r.EmployeeId,
+                r.RequestedClockType,
+                r.Status
+            })
+            .SingleOrDefaultAsync();
+
+        if (request is null)
+            return NotFound(new { message = "Override request not found." });
+
+        return Ok(request);
+    }
+
     [Authorize(Roles = "Admin")]
     [HttpGet("stream")]
     public async Task Stream(CancellationToken cancellationToken)
