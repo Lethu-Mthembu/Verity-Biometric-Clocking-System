@@ -31,7 +31,7 @@ API.interceptors.response.use(
             localStorage.removeItem("userId");
             localStorage.removeItem("role");
 
-            if (["/admin", "/dashboard", "/hr"].includes(window.location.pathname)) {
+            if (["/admin", "/dashboard", "/onboard", "/hr"].includes(window.location.pathname)) {
                 window.location.assign("/kiosk");
             }
         }
