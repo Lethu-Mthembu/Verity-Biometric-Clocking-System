@@ -53,6 +53,7 @@ public class EmployeeController : ControllerBase
 
     //CREATE: api/Employee
     // POST: api/Employee
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> CreateEmployee(CreateEmployeeDto dto)
     {
@@ -104,6 +105,7 @@ public class EmployeeController : ControllerBase
 
     //UPDATE: api/Employee/{id}
     // PUT: api/Employee/{id}
+    [Authorize(Roles = "Admin")]
     [HttpPut("{employeeNumber}")]
     public async Task<IActionResult> UpdateEmployee(String employeeNumber, UpdateEmployeeDto dto)
     {
@@ -146,6 +148,7 @@ public class EmployeeController : ControllerBase
     }
 
     // DELETE: api/Employee/{id}
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{employeeNumber}")]
     public async Task<IActionResult> DeleteEmployee(String employeeNumber)
     {

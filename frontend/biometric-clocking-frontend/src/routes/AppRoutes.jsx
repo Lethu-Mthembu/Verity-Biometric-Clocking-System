@@ -6,6 +6,7 @@ import Dashboard from "../features/dashboard/pages/Dashboard";
 import HrDashboard from "../features/hr/pages/HrDashboard";
 import KioskPage from "../features/kiosk/pages/KioskPage";
 import OnboardPage from "../features/onboarding/pages/OnboardPage";
+import ProtectedRoute from "./ProtectedRoute";
 
 
 function AppRoutes() {
@@ -62,43 +63,45 @@ function AppRoutes() {
       <Route
         path="/dashboard"
         element={
-          <Dashboard
-            employees={employees}
-            pendingAdminRequest={pendingAdminRequest}
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <Dashboard
+              employees={employees}
+              pendingAdminRequest={pendingAdminRequest}
 
-            onAdminRequest={setPendingAdminRequest}
+              onAdminRequest={setPendingAdminRequest}
 
-            onClearAdminRequest={() =>
-              setPendingAdminRequest(null)
-            }
+              onClearAdminRequest={() =>
+                setPendingAdminRequest(null)
+              }
 
-            onEmployeesChange={setEmployees}
+              onEmployeesChange={setEmployees}
 
-            onEditEmployee={(employee) =>
-              navigate("/onboard", {
-                state: {
-                  mode: "edit",
-                  employee,
-                  returnPath: "/dashboard"
-                }
-              })
-            }
+              onEditEmployee={(employee) =>
+                navigate("/onboard", {
+                  state: {
+                    mode: "edit",
+                    employee,
+                    returnPath: "/dashboard"
+                  }
+                })
+              }
 
-            onLogout={() => {
-              localStorage.removeItem("token");
-              localStorage.removeItem("role");
-              navigate("/");
-            }}
+              onLogout={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("role");
+                navigate("/");
+              }}
 
-            onOnboard={() =>
-              navigate("/onboard", {
-                state: {
-                  mode: "create",
-                  returnPath: "/dashboard"
-                }
-              })
-            }
-          />
+              onOnboard={() =>
+                navigate("/onboard", {
+                  state: {
+                    mode: "create",
+                    returnPath: "/dashboard"
+                  }
+                })
+              }
+            />
+          </ProtectedRoute>
         }
       />
 
@@ -106,43 +109,45 @@ function AppRoutes() {
       <Route
         path="/admin"
         element={
-          <Dashboard
-            employees={employees}
-            pendingAdminRequest={pendingAdminRequest}
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <Dashboard
+              employees={employees}
+              pendingAdminRequest={pendingAdminRequest}
 
-            onAdminRequest={setPendingAdminRequest}
+              onAdminRequest={setPendingAdminRequest}
 
-            onClearAdminRequest={() =>
-              setPendingAdminRequest(null)
-            }
+              onClearAdminRequest={() =>
+                setPendingAdminRequest(null)
+              }
 
-            onEmployeesChange={setEmployees}
+              onEmployeesChange={setEmployees}
 
-            onEditEmployee={(employee) =>
-              navigate("/onboard", {
-                state: {
-                  mode: "edit",
-                  employee,
-                  returnPath: "/admin"
-                }
-              })
-            }
+              onEditEmployee={(employee) =>
+                navigate("/onboard", {
+                  state: {
+                    mode: "edit",
+                    employee,
+                    returnPath: "/admin"
+                  }
+                })
+              }
 
-            onLogout={() => {
-              localStorage.removeItem("token");
-              localStorage.removeItem("role");
-              navigate("/");
-            }}
+              onLogout={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("role");
+                navigate("/");
+              }}
 
-            onOnboard={() =>
-              navigate("/onboard", {
-                state: {
-                  mode: "create",
-                  returnPath: "/admin"
-                }
-              })
-            }
-          />
+              onOnboard={() =>
+                navigate("/onboard", {
+                  state: {
+                    mode: "create",
+                    returnPath: "/admin"
+                  }
+                })
+              }
+            />
+          </ProtectedRoute>
         }
       />
 
@@ -150,12 +155,14 @@ function AppRoutes() {
       <Route
         path="/onboard"
         element={
-          <OnboardPage
-            mode={location.state?.mode || "create"}
-            employee={location.state?.employee}
-            onSaved={refreshEmployees}
-            onBack={() => navigate(location.state?.returnPath || "/admin", { replace: true })}
-          />
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <OnboardPage
+              mode={location.state?.mode || "create"}
+              employee={location.state?.employee}
+              onSaved={refreshEmployees}
+              onBack={() => navigate(location.state?.returnPath || "/admin", { replace: true })}
+            />
+          </ProtectedRoute>
         }
       />
 
@@ -163,13 +170,15 @@ function AppRoutes() {
       <Route
         path="/hr"
         element={
-          <HrDashboard
-            onLogout={() => {
-              localStorage.removeItem("token");
-              localStorage.removeItem("role");
-              navigate("/");
-            }}
-          />
+          <ProtectedRoute allowedRoles={["HR"]}>
+            <HrDashboard
+              onLogout={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("role");
+                navigate("/");
+              }}
+            />
+          </ProtectedRoute>
         }
       />
 
