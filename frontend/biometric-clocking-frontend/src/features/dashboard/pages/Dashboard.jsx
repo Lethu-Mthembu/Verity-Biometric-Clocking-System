@@ -192,7 +192,28 @@ function ProfileModal({ employee, onClose, onEdit }) {
 export default function Dashboard({ employees, pendingAdminRequest, onAdminRequest, onClearAdminRequest, onEmployeesChange, onEditEmployee, onLogout, onOnboard }) {
   const [query, setQuery] = useState('');
   const [action, setAction] = useState(null);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
   const rows = useMemo(() => employees.filter(e => `${e.name} ${e.id}`.toLowerCase().includes(query.toLowerCase())), [employees, query]);
+
+  useEffect(() => {
+    const loadAttendanceLogs = async () => {
+      try {
+        const { data } = await API.get('/Attendance/logs')
+        setAttendanceLogs(Array.isArray(data) ? data : [])
+      } catch (error) {
+        console.error('Could not load attendance logs:', error)
+      }
+    }
+
+    loadAttendanceLogs()
+  }, [])
+
+  const stats = [
+    ['Total employees', employees.length],
+    ['Currently clocked in', attendanceLogs.filter(log => log.isActive).length],
+    ['Completed sessions', attendanceLogs.filter(log => !log.isActive && log.clockOut).length],
+    ['Attendance records', attendanceLogs.length]
+  ]
   useEffect(() => {
     let stream
     const loadPendingRequests = async () => {
@@ -256,7 +277,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
         <header className="mb-7 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-white">
-              Good morning, Alex
+              Attendance overview
             </h1>
 
             <p className="mt-2 text-sm text-slate-300">
@@ -266,24 +287,19 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
 
           <div className="hidden items-center gap-3 rounded-lg bg-[#173a5d] px-4 py-2.5 sm:flex">
             <span className="text-sm font-bold tracking-widest text-sky-50">
-              MONDAY, 28 JULY 2026
+              {new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()).toUpperCase()}
             </span>
 
             <span className="text-slate-600">|</span>
 
             <span className="text-sm font-bold text-sky-50">
-              09:47 AM
+              {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date())}
             </span>
           </div>
         </header>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          {[
-            ['Total employees', '248'],
-            ['Currently clocked in', '187'],
-            ['Out / absent today', '47'],
-            ['Late arrivals', '14']
-          ].map(([label, num]) => (
+          {stats.map(([label, num]) => (
             <Panel key={label} className="bg-[#173a5d] p-4">
               <span className="mt-4 block text-lg text-slate-300">{label}</span>
               <b className="mt-1 block text-4xl text-white">{num}</b>

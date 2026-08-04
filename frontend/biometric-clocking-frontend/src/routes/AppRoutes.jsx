@@ -7,12 +7,11 @@ import HrDashboard from "../features/hr/pages/HrDashboard";
 import KioskPage from "../features/kiosk/pages/KioskPage";
 import OnboardPage from "../features/onboarding/pages/OnboardPage";
 
-import { initialEmployees } from "../features/dashboard/data/employees";
 
 function AppRoutes() {
   const navigate = useNavigate();
 
-  const [employees, setEmployees] = useState(initialEmployees);
+  const [employees, setEmployees] = useState([]);
   useEffect(() => {
     const loadEmployees = async () => {
       try {
