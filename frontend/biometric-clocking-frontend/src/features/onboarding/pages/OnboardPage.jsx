@@ -21,7 +21,7 @@ const Field = ({ name, label, placeholder, select, defaultValue }) => (   // reu
   </label>
 )
 
-export default function OnboardPage({ mode = 'create', employee, onBack }) {
+export default function OnboardPage({ mode = 'create', employee, onSaved, onBack }) {
   const formRef = useRef(null)   // ref to read all the form field values on save
   const videoRef = useRef(null)   // ref to the live camera video element
   const canvasRef = useRef(null)   // ref to the hidden canvas used only for the preview thumbnail
@@ -31,12 +31,51 @@ export default function OnboardPage({ mode = 'create', employee, onBack }) {
   const [cameraRetryKey, setCameraRetryKey] = useState(0);   // bumping this re-runs the camera-start effect
   const [saving, setSaving] = useState(false);   // tracks whether the save request is in flight
   const [registeredEmployeeNumber, setRegisteredEmployeeNumber] = useState('')
+  const [employeeRecord, setEmployeeRecord] = useState(employee || null)
+  const [loadingEmployee, setLoadingEmployee] = useState(mode === 'edit')
   const captured = Boolean(capturedPhoto);   // true once a photo has been taken
   const isEdit = mode === 'edit'
-  const [firstName, ...lastNameParts] = employee?.name?.split(' ') || []
-  const lastName = lastNameParts.join(' ')
+  const existingEmployee = employeeRecord || employee
+  const [firstNameFromSummary, ...lastNameParts] = existingEmployee?.name?.split(' ') || []
+  const firstName = existingEmployee?.firstName || firstNameFromSummary || ''
+  const lastName = existingEmployee?.lastName || lastNameParts.join(' ')
+  const existingPhoto = existingEmployee?.faceImage
+    ? `data:${existingEmployee.facialImageContentType || 'image/jpeg'};base64,${existingEmployee.faceImage}`
+    : ''
+  const existingDescriptor = Array.isArray(existingEmployee?.faceDescriptor) && existingEmployee.faceDescriptor.length === 128
+    ? existingEmployee.faceDescriptor
+    : null
+  const displayedPhoto = capturedPhoto || existingPhoto
 
   useEffect(() => { loadFaceModels() }, [])   // loads the face-api.js models once when the page mounts
+
+  useEffect(() => {
+    if (!isEdit || !employee?.id) return
+
+    let cancelled = false
+    const loadEmployee = async () => {
+      try {
+        setLoadingEmployee(true)
+        const response = await API.get(`/Employee/number/${encodeURIComponent(employee.id)}`)
+        if (!cancelled) {
+          setEmployeeRecord(response.data)
+          setFaceDescriptor(
+            Array.isArray(response.data.faceDescriptor) && response.data.faceDescriptor.length === 128
+              ? response.data.faceDescriptor
+              : null
+          )
+        }
+      } catch (error) {
+        console.error('Failed to load employee details:', error)
+        if (!cancelled) setCameraError('Unable to load employee details.')
+      } finally {
+        if (!cancelled) setLoadingEmployee(false)
+      }
+    }
+
+    loadEmployee()
+    return () => { cancelled = true }
+  }, [employee, isEdit])
 
   useEffect(() => {
     let stream   // holds the camera stream so it can be stopped on cleanup
@@ -98,18 +137,19 @@ export default function OnboardPage({ mode = 'create', employee, onBack }) {
       position: formValues.role || '',           // backend field is "Position", form field is "role"
       phoneNumber: formValues.phone || '',        // backend field is "PhoneNumber", form field is "phone"
       email: formValues.email || '',
-      faceImageBase64: capturedPhoto || '',        // the preview JPEG already captured above
-      faceDescriptor: faceDescriptor || []         // 128 numeric values from face-api.js
+      faceImageBase64: capturedPhoto || existingPhoto,
+      faceDescriptor: faceDescriptor || existingDescriptor || []
     }
 
     setSaving(true)   // show the "Saving..." state on the button
 
     try {
       const response = isEdit
-        ? await API.put(`/Employee/${employee.id}`, payload)
+        ? await API.put(`/Employee/${existingEmployee.employeeNumber || existingEmployee.id}`, payload)
         : await API.post('/Employee', payload)
 
       if (isEdit) {
+        await onSaved?.()
         onBack()
       } else {
         setRegisteredEmployeeNumber(response.data.employeeNumber)
@@ -134,13 +174,13 @@ export default function OnboardPage({ mode = 'create', employee, onBack }) {
         <div className="mt-7 grid gap-5 lg:grid-cols-[1.25fr_.75fr]">
           <Panel className="p-6">
             <h2 className="font-bold text-white">Personal details</h2>
-            <form ref={formRef} className="mt-6 grid gap-x-4 gap-y-5 sm:grid-cols-2">
+            <form key={`${existingEmployee?.employeeNumber || existingEmployee?.id || 'new'}-${loadingEmployee ? 'loading' : 'ready'}`} ref={formRef} className="mt-6 grid gap-x-4 gap-y-5 sm:grid-cols-2">
               <Field name="firstName" label="FIRST NAME" placeholder="e.g. Samira" defaultValue={firstName}/>
               <Field name="lastName" label="LAST NAME" placeholder="e.g. Patel" defaultValue={lastName}/>
-              <Field name="email" label="WORK EMAIL" placeholder="samira@company.com"/>
-              <Field name="phone" label="PHONE NUMBER" placeholder="+27 00 000 0000"/>
-              <Field name="department" label="DEPARTMENT" select defaultValue={employee?.dept}/>
-              <Field name="role" label="ROLE" placeholder="e.g. Product Designer"/>
+              <Field name="email" label="WORK EMAIL" placeholder="samira@company.com" defaultValue={existingEmployee?.email}/>
+              <Field name="phone" label="PHONE NUMBER" placeholder="+27 00 000 0000" defaultValue={existingEmployee?.phoneNumber}/>
+              <Field name="department" label="DEPARTMENT" select defaultValue={existingEmployee?.department || existingEmployee?.dept}/>
+              <Field name="role" label="ROLE" placeholder="e.g. Product Designer" defaultValue={existingEmployee?.position}/>
             </form>
           </Panel>
 
@@ -149,8 +189,8 @@ export default function OnboardPage({ mode = 'create', employee, onBack }) {
 
             <div className={`relative mt-6 flex min-h-44 flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed ${captured ? 'border-emerald-400 bg-emerald-500/5 text-emerald-300' : 'border-slate-600 bg-[#09192c] text-sky-300'}`}>
               <video ref={videoRef} onPause={() => videoRef.current?.play().catch(() => null)} className="h-44 w-full object-cover" muted playsInline autoPlay/>
-              {capturedPhoto && (
-                <img src={capturedPhoto} alt="Captured employee" className="absolute inset-0 h-44 w-full object-cover"/>
+              {displayedPhoto && (
+                <img src={displayedPhoto} alt="Employee facial image" className="absolute inset-0 h-44 w-full object-cover"/>
               )}
               <canvas ref={canvasRef} className="hidden"/>
 
@@ -161,8 +201,8 @@ export default function OnboardPage({ mode = 'create', employee, onBack }) {
               )}
 
               <div className="absolute inset-x-0 bottom-0 bg-[#071525cc] p-3 text-center">
-                <b className="text-sm text-slate-100">{captured ? 'Face captured' : 'Camera ready'}</b>
-                <span className="mt-1 block text-[10px] text-slate-400">{cameraError || (captured ? 'Baseline identity image saved' : 'Ensure even lighting and clear face visibility')}</span>
+                <b className="text-sm text-slate-100">{captured ? 'Face captured' : existingPhoto ? 'Saved face image' : 'Camera ready'}</b>
+                <span className="mt-1 block text-[10px] text-slate-400">{cameraError || (captured ? 'New biometric image ready' : existingPhoto ? 'Existing image loaded' : 'Ensure even lighting and clear face visibility')}</span>
               </div>
               {cameraError && (
                 <button onClick={() => setCameraRetryKey(value => value + 1)} className="absolute left-1/2 top-4 -translate-x-1/2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white">
@@ -171,7 +211,7 @@ export default function OnboardPage({ mode = 'create', employee, onBack }) {
               )}
             </div>
             <button onClick={capturePhoto} className="mt-4 w-full rounded-lg  bg-[#10233a] py-3 text-xs font-bold hover:bg-slate-500">
-              {captured ? 'Re-capture photo' : 'Capture facial image'}
+              {isEdit ? 'Re-capture image' : (captured ? 'Re-capture photo' : 'Capture facial image')}
             </button>
             <p className="mt-5 text-[10px] leading-4 text-slate-400">
               Biometric data is encrypted before storage and used only for attendance verification.
@@ -186,7 +226,7 @@ export default function OnboardPage({ mode = 'create', employee, onBack }) {
         )}
         <footer className="mt-6 flex justify-end gap-3">
           <button onClick={onBack} className="rounded-lg px-5 py-3 text-xs font-bold  hover:bg-slate-500">Cancel</button>
-          <button onClick={saveEmployee} disabled={saving || !faceDescriptor || Boolean(registeredEmployeeNumber)} className="rounded-lg bg-sky-600 px-5 py-3 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-40">{saving ? 'Saving...' : (registeredEmployeeNumber ? 'Employee registered' : (isEdit ? 'Save changes' : 'Register employee'))}</button>
+          <button onClick={saveEmployee} disabled={saving || loadingEmployee || !displayedPhoto || !faceDescriptor || faceDescriptor.length !== 128 || Boolean(registeredEmployeeNumber)} className="rounded-lg bg-sky-600 px-5 py-3 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-40">{saving ? 'Saving...' : (registeredEmployeeNumber ? 'Employee registered' : (isEdit ? 'Save changes' : 'Register employee'))}</button>
         </footer>
       </section>
     </main>

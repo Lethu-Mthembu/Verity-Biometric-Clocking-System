@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { getEmployees } from "../services/employeeService";
 
 import Dashboard from "../features/dashboard/pages/Dashboard";
@@ -10,30 +10,41 @@ import OnboardPage from "../features/onboarding/pages/OnboardPage";
 
 function AppRoutes() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const formatEmployee = employee => ({
+    id: employee.employeeNumber,
+    name: `${employee.firstName} ${employee.lastName}`,
+    dept: employee.department,
+    status: employee.isActive ? "Clocked Out" : "Absent",
+    time: employee.createdAt
+      ? new Date(employee.createdAt).toLocaleTimeString()
+      : "-"
+  });
 
   const [employees, setEmployees] = useState([]);
+  const refreshEmployees = async () => {
+    try {
+      const data = await getEmployees();
+      setEmployees(data.map(formatEmployee));
+    } catch (error) {
+      console.error("Failed to load employees:", error);
+    }
+  };
+
   useEffect(() => {
+    let cancelled = false;
     const loadEmployees = async () => {
       try {
         const data = await getEmployees();
-
-        const formattedEmployees = data.map(employee => ({
-          id: employee.employeeNumber,
-          name: `${employee.firstName} ${employee.lastName}`,
-          dept: employee.department,
-          status: employee.isActive ? "Clocked Out" : "Absent",
-          time: employee.createdAt
-            ? new Date(employee.createdAt).toLocaleTimeString()
-            : "-"
-        }));
-
-        setEmployees(formattedEmployees);
+        if (!cancelled) setEmployees(data.map(formatEmployee));
       } catch (error) {
         console.error("Failed to load employees:", error);
       }
     };
 
     loadEmployees();
+    return () => { cancelled = true };
   }, []);
 
   const [pendingAdminRequest, setPendingAdminRequest] = useState(null);
@@ -67,7 +78,8 @@ function AppRoutes() {
               navigate("/onboard", {
                 state: {
                   mode: "edit",
-                  employee
+                  employee,
+                  returnPath: "/dashboard"
                 }
               })
             }
@@ -81,7 +93,8 @@ function AppRoutes() {
             onOnboard={() =>
               navigate("/onboard", {
                 state: {
-                  mode: "create"
+                  mode: "create",
+                  returnPath: "/dashboard"
                 }
               })
             }
@@ -109,7 +122,8 @@ function AppRoutes() {
               navigate("/onboard", {
                 state: {
                   mode: "edit",
-                  employee
+                  employee,
+                  returnPath: "/admin"
                 }
               })
             }
@@ -123,7 +137,8 @@ function AppRoutes() {
             onOnboard={() =>
               navigate("/onboard", {
                 state: {
-                  mode: "create"
+                  mode: "create",
+                  returnPath: "/admin"
                 }
               })
             }
@@ -136,8 +151,10 @@ function AppRoutes() {
         path="/onboard"
         element={
           <OnboardPage
-            mode="create"
-            onBack={() => navigate("/dashboard")}
+            mode={location.state?.mode || "create"}
+            employee={location.state?.employee}
+            onSaved={refreshEmployees}
+            onBack={() => navigate(location.state?.returnPath || "/admin", { replace: true })}
           />
         }
       />
