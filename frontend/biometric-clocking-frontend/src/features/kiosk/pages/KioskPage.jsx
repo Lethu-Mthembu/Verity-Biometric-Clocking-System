@@ -141,7 +141,7 @@ function NoticeModal({ message, onClose }) {
   )
 }
 
-function Success({ employee, clockType }) {
+function Success({ employee, clockType, now }) {
   const [count, setCount] = useState(3);
   useEffect(() => {
     const countdown = setInterval(() => {
@@ -164,8 +164,8 @@ function Success({ employee, clockType }) {
           <span className="text-sm text-[#071525]">{employee?.employeeNumber}</span>
         </div>
         <time className="pl-3 leading-5 text-sm text-[#071525]">
-          2026-07-28<br />
-          <b className="text-sm">09:47:15</b>
+          {now.toLocaleDateString([], { year: 'numeric', month: '2-digit', day: '2-digit' })}<br />
+          <b className="text-sm">{now.toLocaleTimeString()}</b>
         </time>
       </div>
       <p className="mt-5 text-xs text-white">Returning to kiosk in {count} seconds</p>
@@ -363,7 +363,7 @@ export default function KioskPage({ employees = [], onAdminAccess, onAdminCall }
     return () => clearTimeout(t)
   }, [success])
 
-  if (success) return <Success employee={matchedEmployee} clockType={successClockType} />
+  if (success) return <Success employee={matchedEmployee} clockType={successClockType} now={now} />
 
   const add = n => setOtp(v => v.length < 6 ? v + n : v)
 
