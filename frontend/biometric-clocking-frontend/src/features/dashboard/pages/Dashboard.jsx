@@ -97,7 +97,7 @@ function DeleteModal({ employee, onClose, onRemove }) {
 
     try {
       await scanFingerprint()
-      onRemove(employee.id)
+      await onRemove(employee.id)
       onClose()
     } catch (err) {
       setError(err.message || 'Fingerprint scan was not completed.')
@@ -231,7 +231,8 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
 
   }
 
-  const removeEmployee = employeeId => {
+  const removeEmployee = async employeeId => {
+    await API.delete(`/Employee/${encodeURIComponent(employeeId)}`)
     onEmployeesChange(currentEmployees => currentEmployees.filter(employee => employee.id !== employeeId))
   }
 
@@ -246,7 +247,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
         </div>
         <nav className="mt-10 grid gap-1 text-sm font-semibold">
           <a className="rounded-lg bg-[#245a84] px-3 py-3 text-sky-100">Overview</a>
-          <a className="px-3 py-3 text-slate-300">Employee directory</a>
+          
         </nav>
         <button onClick={onLogout} className="mt-auto px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Log out</button>
       </aside>
