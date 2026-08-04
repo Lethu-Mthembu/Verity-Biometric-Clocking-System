@@ -12,7 +12,7 @@ namespace BiometricClockingSystem.Api.Services;
 
 public sealed class OtpService : IOtpService
 {
-    private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(1);
     private readonly ApplicationDbContext _context;
     private readonly IMemoryCache _cache;
     private readonly ILogger<OtpService> _logger;
