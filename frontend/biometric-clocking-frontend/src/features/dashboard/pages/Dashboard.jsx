@@ -193,7 +193,13 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
   const [query, setQuery] = useState('');
   const [action, setAction] = useState(null);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [now, setNow] = useState(() => new Date());
   const rows = useMemo(() => employees.filter(e => `${e.name} ${e.id}`.toLowerCase().includes(query.toLowerCase())), [employees, query]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const loadAttendanceLogs = async () => {
@@ -214,6 +220,8 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
     ['Completed sessions', attendanceLogs.filter(log => !log.isActive && log.clockOut).length],
     ['Attendance records', attendanceLogs.length]
   ]
+  const hour = now.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
   useEffect(() => {
     let stream
     const loadPendingRequests = async () => {
@@ -277,7 +285,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
         <header className="mb-7 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-white">
-              Attendance overview
+              {greeting}, Admin
             </h1>
 
             <p className="mt-2 text-sm text-slate-300">
@@ -287,13 +295,13 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
 
           <div className="hidden items-center gap-3 rounded-lg bg-[#173a5d] px-4 py-2.5 sm:flex">
             <span className="text-sm font-bold tracking-widest text-sky-50">
-              {new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()).toUpperCase()}
+              {new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now).toUpperCase()}
             </span>
 
             <span className="text-slate-600">|</span>
 
             <span className="text-sm font-bold text-sky-50">
-              {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date())}
+              {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(now)}
             </span>
           </div>
         </header>

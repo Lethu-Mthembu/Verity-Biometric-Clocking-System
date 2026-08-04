@@ -11,21 +11,41 @@ const statusClass = {
 const currentLocation =
   sessionStorage.getItem("currentLocation") || "Location unavailable";
 
-const formatDateTime = value => value
-  ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
-  : '-'
-
 const formatTime = value => value
   ? new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(new Date(value))
   : '-'
 
 const formatMethod = value => value === 'FingerprintOverride' ? 'Admin override' : value || '-'
 
+const formatDuration = (clockIn, clockOut, now) => {
+  if (!clockIn) return '-'
+
+  const start = new Date(clockIn)
+  const end = clockOut ? new Date(clockOut) : now
+  const totalMinutes = Math.max(0, Math.floor((end - start) / 60000))
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  const parts = []
+
+  if (days) parts.push(`${days}d`)
+  if (hours || days) parts.push(`${hours}h`)
+  parts.push(`${minutes}m`)
+
+  return parts.join(' ')
+}
+
 export default function HrDashboardPage({ onLogout }) {
   const [query, setQuery] = useState('')
   const [attendanceLogs, setAttendanceLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -57,8 +77,8 @@ export default function HrDashboardPage({ onLogout }) {
 
   const currentDate = new Intl.DateTimeFormat(undefined, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  }).format(new Date()).toUpperCase()
-  const currentTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date())
+  }).format(now).toUpperCase()
+  const currentTime = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(now)
 
   return (
     <main className="flex min-h-screen bg-[#12304c] text-slate-200">
@@ -112,7 +132,7 @@ export default function HrDashboardPage({ onLogout }) {
                   <th>STATUS</th>
                   <th>CLOCK IN</th>
                   <th>CLOCK OUT</th>
-                  <th>TIMESTAMP</th>
+                  <th>DURATION</th>
                   <th>METHOD</th>
                 </tr>
               </thead>
@@ -138,7 +158,7 @@ export default function HrDashboardPage({ onLogout }) {
                     <td><span className={`font-semibold ${statusClass[status]}`}>{status}</span></td>
                     <td><b>{formatTime(log.clockIn)}</b></td>
                     <td><b>{formatTime(log.clockOut)}</b></td>
-                    <td>{formatDateTime(log.createdAt)}</td>
+                    <td>{formatDuration(log.clockIn, log.clockOut, now)}</td>
                     <td>{methods}</td>
                   </tr>
                   )
