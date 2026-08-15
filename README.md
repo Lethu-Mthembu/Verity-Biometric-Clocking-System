@@ -1,4 +1,4 @@
-# Biometric Attendance — Side Project
+# Biometric Attendance System
 
 This is an independent copy of the biometric attendance system for separate development and hosting.
 
