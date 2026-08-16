@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Modal from '../../../shared/components/Modal'
 import Avatar from '../../../shared/components/Avatar'
 import Panel from '../../../shared/components/Panel'
@@ -196,7 +196,14 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [now, setNow] = useState(() => new Date());
   const [hrAccountOpen, setHrAccountOpen] = useState(false)
-  const rows = useMemo(() => employees.filter(e => `${e.name} ${e.id}`.toLowerCase().includes(query.toLowerCase())), [employees, query]);
+  const loadAttendanceLogs = useCallback(async () => {
+    try {
+      const { data } = await API.get('/Attendance/logs')
+      setAttendanceLogs(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Could not load attendance logs:', error)
+    }
+  }, [])
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -204,17 +211,41 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
   }, [])
 
   useEffect(() => {
-    const loadAttendanceLogs = async () => {
-      try {
-        const { data } = await API.get('/Attendance/logs')
-        setAttendanceLogs(Array.isArray(data) ? data : [])
-      } catch (error) {
-        console.error('Could not load attendance logs:', error)
-      }
-    }
-
     loadAttendanceLogs()
-  }, [])
+    const refreshTimer = setInterval(loadAttendanceLogs, 15000)
+    return () => clearInterval(refreshTimer)
+  }, [loadAttendanceLogs])
+
+  const directoryEmployees = useMemo(() => {
+    const latestSessionByEmployee = new Map()
+
+    attendanceLogs.forEach(log => {
+      const employeeNumber = String(log.employeeNumber || '').toLowerCase()
+      if (employeeNumber && !latestSessionByEmployee.has(employeeNumber)) {
+        latestSessionByEmployee.set(employeeNumber, log)
+      }
+    })
+
+    return employees.map(employee => {
+      const latestSession = latestSessionByEmployee.get(String(employee.id).toLowerCase())
+      if (!latestSession) return employee
+
+      const lastTimestamp = latestSession.isActive
+        ? latestSession.clockIn
+        : latestSession.clockOut || latestSession.clockIn
+
+      return {
+        ...employee,
+        status: latestSession.isActive ? 'Clocked In' : 'Clocked Out',
+        time: lastTimestamp ? new Date(lastTimestamp).toLocaleTimeString() : employee.time
+      }
+    })
+  }, [attendanceLogs, employees])
+
+  const rows = useMemo(
+    () => directoryEmployees.filter(e => `${e.name} ${e.id}`.toLowerCase().includes(query.toLowerCase())),
+    [directoryEmployees, query]
+  )
 
   const stats = [
     ['Total employees', employees.length],
@@ -258,6 +289,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
         time: new Date().toLocaleTimeString()
       }
     }))
+    await loadAttendanceLogs()
     onClearAdminRequest()
 
   }
@@ -269,7 +301,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
 
   return (
     <main className="flex min-h-screen bg-[#12304c] text-slate-200">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-[#284968] bg-[#10233a] p-5 md:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-[#284968] bg-[#10233a] p-5 md:flex">
         <div className="flex items-center gap-3">
           <div>
             <b className="text-xl tracking-widest text-white">VERITY</b>
@@ -280,7 +312,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
           <a className="rounded-lg bg-[#245a84] px-3 py-3 text-sky-100">Overview</a>
           
         </nav>
-        <button onClick={onLogout} className="mt-auto px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Log out</button>
+        <button onClick={onLogout} className="mt-auto rounded-lg bg-rose-700 px-3 py-2.5 text-left text-xs font-bold text-white hover:bg-rose-600">Log out</button>
       </aside>
 
       <div className="min-w-0 flex-1 p-5 md:p-9">
@@ -295,18 +327,21 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
             </p>
           </div>
 
-          <div className="hidden items-center gap-3 rounded-lg bg-[#173a5d] px-4 py-2.5 sm:flex">
-            <span className="text-sm font-bold tracking-widest text-sky-50">
-              {new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now).toUpperCase()}
-            </span>
+          <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-3 rounded-lg bg-[#173a5d] px-4 py-2.5 xl:flex">
+              <span className="text-sm font-bold tracking-widest text-sky-50">
+                {new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now).toUpperCase()}
+              </span>
 
-            <span className="text-slate-600">|</span>
+              <span className="text-slate-600">|</span>
 
-            <span className="text-sm font-bold text-sky-50">
-              {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(now)}
-            </span>
+              <span className="text-sm font-bold text-sky-50">
+                {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(now)}
+              </span>
+            </div>
+            <button onClick={() => setHrAccountOpen(true)} className="rounded-lg border border-sky-500 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-[#173a5d]">HR account</button>
+            <button onClick={onLogout} className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-600">Log out</button>
           </div>
-          <button onClick={() => setHrAccountOpen(true)} className="rounded-lg border border-sky-500 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-[#173a5d]">HR account</button>
         </header>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
