@@ -33,7 +33,7 @@ function AdminLogin({ onClose, onLogin }) {
 
       sessionStorage.setItem("currentLocation", locationName);
 
-      onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin');
+      onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin', Boolean(auth.mustChangePassword));
 
     } catch (error) {
       console.error(error);
@@ -173,7 +173,7 @@ function Success({ employee, clockType, now }) {
   )
 }
 
-export default function KioskPage({ employees = [], onAdminAccess, onAdminCall }) {
+export default function KioskPage({ onAdminAccess, onAdminCall }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const faceCheckStartedRef = useRef(false)
@@ -331,12 +331,8 @@ export default function KioskPage({ employees = [], onAdminAccess, onAdminCall }
 
         if (stopped || data.status !== 'Resolved') return
 
-        const employee = employees.find(item =>
-          item.id?.toLowerCase() === adminWaitingRequest.employeeNumber.toLowerCase()
-        )
-
         setMatchedEmployee({
-          name: employee?.name || adminWaitingRequest.employeeNumber,
+          name: adminWaitingRequest.employeeNumber,
           employeeNumber: adminWaitingRequest.employeeNumber
         })
         setSuccessClockType(adminWaitingRequest.requestedClockType)
@@ -354,7 +350,7 @@ export default function KioskPage({ employees = [], onAdminAccess, onAdminCall }
       stopped = true
       clearInterval(interval)
     }
-  }, [adminWaitingRequest, employees])
+  }, [adminWaitingRequest])
 
   useEffect(() => {
     if (!success) return

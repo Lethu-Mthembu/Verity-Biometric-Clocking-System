@@ -1,7 +1,11 @@
 using BiometricClockingSystem.Api.DTOs;
 //using BiometricClockingSystem.Api.Interfaces;
 using  BiometricClockingSystem.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace BiometricClockingSystem.Api.Controllers;
 
@@ -16,17 +20,28 @@ public class AuthController : ControllerBase
         _authService = authService;
     }
 
-    [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterDto dto)
+    // User registration is deliberately not public. Employees use biometric
+    // enrollment only; the one HR login is created by an authenticated admin.
+    [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("privileged")]
+    [HttpPost("hr-account")]
+    public async Task<IActionResult> CreateHrAccount(CreateHrAccountDto dto)
     {
-        var success = await _authService.RegisterAsync(dto);
+        var result = await _authService.CreateHrAccountAsync(dto);
 
-        if (!success)
-            return BadRequest("Email already exists.");
+        if (!result.Succeeded)
+            return Conflict(new { message = result.Error });
 
-        return Ok("Registration successful.");
+        return StatusCode(StatusCodes.Status201Created, new { message = "HR account created. The HR user must change the temporary password after signing in." });
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpGet("hr-account")]
+    public async Task<ActionResult<HrAccountStatusDto>> GetHrAccountStatus() =>
+        Ok(await _authService.GetHrAccountStatusAsync());
+
+    [AllowAnonymous]
+    [EnableRateLimiting("login")]
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
@@ -34,6 +49,24 @@ public class AuthController : ControllerBase
 
         if (result == null)
             return Unauthorized("Invalid email or password.");
+
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "HR")]
+    [EnableRateLimiting("privileged")]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(ChangePasswordDto dto)
+    {
+        var userIdValue = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!Guid.TryParse(userIdValue, out var userId))
+            return Unauthorized(new { message = "Invalid user identity." });
+
+        var result = await _authService.ChangePasswordAsync(userId, dto);
+        if (result is null)
+            return BadRequest(new { message = "Current password is incorrect." });
 
         return Ok(result);
     }

@@ -3,6 +3,8 @@ using BiometricClockingSystem.Api.Models;
 using BiometricClockingSystem.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BiometricClockingSystem.Api.Controllers;
 
@@ -31,6 +33,8 @@ public sealed class FaceController : ControllerBase
     // Kiosk login. The browser creates a descriptor locally; this action only
     // compares descriptors and never forwards a photo to an external provider.
     [HttpPost("verify")]
+    [AllowAnonymous]
+    [EnableRateLimiting("kiosk")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxFaceImageBytes)]
     public async Task<IActionResult> Verify(
@@ -45,6 +49,8 @@ public sealed class FaceController : ControllerBase
     }
 
     [HttpPost("verify")]
+    [AllowAnonymous]
+    [EnableRateLimiting("kiosk")]
     [Consumes("application/json")]
     public async Task<IActionResult> VerifyJson([FromBody] FaceVerificationRequest request)
     {

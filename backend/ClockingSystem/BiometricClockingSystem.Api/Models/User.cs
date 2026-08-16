@@ -19,5 +19,9 @@ public class User
 
     public bool IsActive { get; set; } = true;
 
+    // HR accounts are created by an administrator with a one-time temporary
+    // password. Their JWT is restricted until they choose a private password.
+    public bool RequirePasswordChange { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

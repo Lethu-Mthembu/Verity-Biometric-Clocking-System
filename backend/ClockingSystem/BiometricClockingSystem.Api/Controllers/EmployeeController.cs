@@ -12,6 +12,7 @@ namespace BiometricClockingSystem.Api.Controllers;
 [Route("api/[controller]")]
 public class EmployeeController : ControllerBase
 {
+    private const int MaxFaceImageBytes = 5 * 1024 * 1024;
     private readonly ApplicationDbContext _context;
 
     public EmployeeController(ApplicationDbContext context)
@@ -21,17 +22,32 @@ public class EmployeeController : ControllerBase
 
     //GET ALL
     // GET: api/Employee
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<IActionResult> GetEmployees()
     {
         var employees = await _context.Employees
+             .AsNoTracking()
              .Where(e => e.IsActive)
+             .Select(e => new EmployeeResponseDto
+             {
+                 EmployeeNumber = e.EmployeeNumber,
+                 FirstName = e.FirstName,
+                 LastName = e.LastName,
+                 Department = e.Department,
+                 Position = e.Position,
+                 PhoneNumber = e.PhoneNumber,
+                 Email = e.Email,
+                 IsActive = e.IsActive,
+                 CreatedAt = e.CreatedAt
+             })
              .ToListAsync();
         return Ok(employees);
     }
 
     //FIND EMPLOYEE
     // GET: api/Employee/{id}
+    [Authorize(Roles = "Admin")]
     [HttpGet("number/{employeeNumber}")]
     public async Task<IActionResult> GetByEmployeeNumber(string employeeNumber)
     {
@@ -47,7 +63,7 @@ public class EmployeeController : ControllerBase
                 message = "Employee not found."
             });
 
-        return Ok(employee);
+        return Ok(ToResponseDto(employee));
     }
 
 
@@ -66,6 +82,7 @@ public class EmployeeController : ControllerBase
         {
             faceImage = ConvertBase64ToBytes(dto.FaceImageBase64);
         }
+
         catch (FormatException)
         {
             return BadRequest(new
@@ -74,6 +91,9 @@ public class EmployeeController : ControllerBase
                 message = "Invalid face image."
             });
         }
+
+        if (faceImage.Length == 0 || faceImage.Length > MaxFaceImageBytes)
+            return BadRequest(new { success = false, message = "Face image must be between 1 byte and 5 MB." });
 
         var employeeNumber = await GenerateEmployeeNumberAsync();
         var employee = new Employee
@@ -123,10 +143,14 @@ public class EmployeeController : ControllerBase
         {
             faceImageBytes = ConvertBase64ToBytes(dto.FaceImageBase64);
         }
+
         catch (FormatException)
         {
             return BadRequest(new { success = false, message = "Invalid face image." });
         }
+
+        if (faceImageBytes.Length == 0 || faceImageBytes.Length > MaxFaceImageBytes)
+            return BadRequest(new { success = false, message = "Face image must be between 1 byte and 5 MB." });
 
         employee.FirstName = dto.FirstName;
         employee.LastName = dto.LastName;
@@ -143,7 +167,7 @@ public class EmployeeController : ControllerBase
         {
             success = true,
             message = "Employee updated successfully.",
-            employee
+            employee = ToResponseDto(employee)
         });
     }
 
@@ -188,6 +212,19 @@ public class EmployeeController : ControllerBase
 
     private static bool IsValidDescriptor(float[]? descriptor) =>
         descriptor is { Length: 128 } && descriptor.All(float.IsFinite);
+
+    private static EmployeeResponseDto ToResponseDto(Employee employee) => new()
+    {
+        EmployeeNumber = employee.EmployeeNumber,
+        FirstName = employee.FirstName,
+        LastName = employee.LastName,
+        Department = employee.Department,
+        Position = employee.Position,
+        PhoneNumber = employee.PhoneNumber,
+        Email = employee.Email,
+        IsActive = employee.IsActive,
+        CreatedAt = employee.CreatedAt
+    };
 
      // PUT THE METHOD HERE
     private async Task<string> GenerateEmployeeNumberAsync()

@@ -18,7 +18,7 @@ public class AttendanceController : ControllerBase
 
     // Returns the complete attendance history for the HR and admin dashboards.
     [HttpGet("logs")]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR", Policy = "PasswordReady")]
     public async Task<IActionResult> GetLogs(CancellationToken cancellationToken)
     {
         var logs = await _context.Attendances

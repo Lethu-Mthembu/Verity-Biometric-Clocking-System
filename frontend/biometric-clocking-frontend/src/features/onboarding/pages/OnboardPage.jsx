@@ -39,13 +39,7 @@ export default function OnboardPage({ mode = 'create', employee, onSaved, onBack
   const [firstNameFromSummary, ...lastNameParts] = existingEmployee?.name?.split(' ') || []
   const firstName = existingEmployee?.firstName || firstNameFromSummary || ''
   const lastName = existingEmployee?.lastName || lastNameParts.join(' ')
-  const existingPhoto = existingEmployee?.faceImage
-    ? `data:${existingEmployee.facialImageContentType || 'image/jpeg'};base64,${existingEmployee.faceImage}`
-    : ''
-  const existingDescriptor = Array.isArray(existingEmployee?.faceDescriptor) && existingEmployee.faceDescriptor.length === 128
-    ? existingEmployee.faceDescriptor
-    : null
-  const displayedPhoto = capturedPhoto || existingPhoto
+  const displayedPhoto = capturedPhoto
 
   useEffect(() => { loadFaceModels() }, [])   // loads the face-api.js models once when the page mounts
 
@@ -59,11 +53,6 @@ export default function OnboardPage({ mode = 'create', employee, onSaved, onBack
         const response = await API.get(`/Employee/number/${encodeURIComponent(employee.id)}`)
         if (!cancelled) {
           setEmployeeRecord(response.data)
-          setFaceDescriptor(
-            Array.isArray(response.data.faceDescriptor) && response.data.faceDescriptor.length === 128
-              ? response.data.faceDescriptor
-              : null
-          )
         }
       } catch (error) {
         console.error('Failed to load employee details:', error)
@@ -137,8 +126,8 @@ export default function OnboardPage({ mode = 'create', employee, onSaved, onBack
       position: formValues.role || '',           // backend field is "Position", form field is "role"
       phoneNumber: formValues.phone || '',        // backend field is "PhoneNumber", form field is "phone"
       email: formValues.email || '',
-      faceImageBase64: capturedPhoto || existingPhoto,
-      faceDescriptor: faceDescriptor || existingDescriptor || []
+      faceImageBase64: capturedPhoto,
+      faceDescriptor: faceDescriptor || []
     }
 
     setSaving(true)   // show the "Saving..." state on the button
@@ -201,8 +190,8 @@ export default function OnboardPage({ mode = 'create', employee, onSaved, onBack
               )}
 
               <div className="absolute inset-x-0 bottom-0 bg-[#071525cc] p-3 text-center">
-                <b className="text-sm text-slate-100">{captured ? 'Face captured' : existingPhoto ? 'Saved face image' : 'Camera ready'}</b>
-                <span className="mt-1 block text-[10px] text-slate-400">{cameraError || (captured ? 'New biometric image ready' : existingPhoto ? 'Existing image loaded' : 'Ensure even lighting and clear face visibility')}</span>
+                <b className="text-sm text-slate-100">{captured ? 'Face captured' : 'Camera ready'}</b>
+                <span className="mt-1 block text-[10px] text-slate-400">{cameraError || (captured ? 'New biometric image ready' : (isEdit ? 'Capture a new facial image to save edits' : 'Ensure even lighting and clear face visibility'))}</span>
               </div>
               {cameraError && (
                 <button onClick={() => setCameraRetryKey(value => value + 1)} className="absolute left-1/2 top-4 -translate-x-1/2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white">
@@ -214,7 +203,7 @@ export default function OnboardPage({ mode = 'create', employee, onSaved, onBack
               {isEdit ? 'Re-capture image' : (captured ? 'Re-capture photo' : 'Capture facial image')}
             </button>
             <p className="mt-5 text-[10px] leading-4 text-slate-400">
-              Biometric data is encrypted before storage and used only for attendance verification.
+              A new facial image is required for every edit. Stored biometric data is never sent back to the browser.
             </p>
           </Panel>
         </div>

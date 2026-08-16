@@ -5,12 +5,14 @@ using Microsoft.EntityFrameworkCore;
 using BiometricClockingSystem.Api.Data;
 using BiometricClockingSystem.Api.Models;
 using BiometricClockingSystem.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BiometricClockingSystem.Api.Controllers
 {
     // This runs on the shared kiosk device - no employee login needed, since
     // it's their own face (or an admin's fingerprint override) that
     // authenticates the action.
+    [AllowAnonymous]
     public class ClockingController : Controller
     {
         private readonly ApplicationDbContext _context;

@@ -3,6 +3,7 @@ import Modal from '../../../shared/components/Modal'
 import Avatar from '../../../shared/components/Avatar'
 import Panel from '../../../shared/components/Panel'
 import API, { getApiUrl } from '../../../services/authServices'
+import HrAccountModal from './HrAccountModal'
 
 const statusClass = {
   'Clocked In': 'text-[#22ff3c]',
@@ -194,6 +195,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
   const [action, setAction] = useState(null);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [now, setNow] = useState(() => new Date());
+  const [hrAccountOpen, setHrAccountOpen] = useState(false)
   const rows = useMemo(() => employees.filter(e => `${e.name} ${e.id}`.toLowerCase().includes(query.toLowerCase())), [employees, query]);
 
   useEffect(() => {
@@ -304,6 +306,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
               {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(now)}
             </span>
           </div>
+          <button onClick={() => setHrAccountOpen(true)} className="rounded-lg border border-sky-500 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-[#173a5d]">HR account</button>
         </header>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -385,6 +388,7 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
         onEditEmployee(employee)
       }} />}
       {pendingAdminRequest && <AdminRequestModal request={pendingAdminRequest} onApprove={approveAdminRequest} onClose={onClearAdminRequest} />}
+      {hrAccountOpen && <HrAccountModal onClose={() => setHrAccountOpen(false)} />}
     </main>
   )
 }

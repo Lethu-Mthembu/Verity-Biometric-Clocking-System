@@ -45,8 +45,18 @@ export const login = async (loginData) => {
     return response.data;
 };
 
-export const register = async (registerData) => {
-    const response = await API.post("/Auth/register", registerData);
+export const getHrAccountStatus = async () => {
+    const response = await API.get("/Auth/hr-account");
+    return response.data;
+};
+
+export const createHrAccount = async (accountData) => {
+    const response = await API.post("/Auth/hr-account", accountData);
+    return response.data;
+};
+
+export const changeHrPassword = async (passwordData) => {
+    const response = await API.post("/Auth/change-password", passwordData);
     return response.data;
 };
 

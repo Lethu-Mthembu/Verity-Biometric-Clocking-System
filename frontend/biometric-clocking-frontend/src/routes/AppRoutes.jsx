@@ -6,6 +6,7 @@ import Dashboard from "../features/dashboard/pages/Dashboard";
 import HrDashboard from "../features/hr/pages/HrDashboard";
 import KioskPage from "../features/kiosk/pages/KioskPage";
 import OnboardPage from "../features/onboarding/pages/OnboardPage";
+import ChangePasswordPage from "../features/hr/pages/ChangePasswordPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 
@@ -34,6 +35,12 @@ function AppRoutes() {
   };
 
   useEffect(() => {
+    const isAdmin = String(localStorage.getItem("role") || "").toLowerCase() === "admin";
+    if (!isAdmin) {
+      setEmployees([]);
+      return undefined;
+    }
+
     let cancelled = false;
     const loadEmployees = async () => {
       try {
@@ -46,7 +53,7 @@ function AppRoutes() {
 
     loadEmployees();
     return () => { cancelled = true };
-  }, []);
+  }, [location.pathname]);
 
   const [pendingAdminRequest, setPendingAdminRequest] = useState(null);
 
@@ -172,6 +179,7 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["HR"]}>
             <HrDashboard
+              onChangePassword={() => navigate("/hr/change-password")}
               onLogout={() => {
                 localStorage.removeItem("token");
                 localStorage.removeItem("role");
@@ -182,16 +190,23 @@ function AppRoutes() {
         }
       />
 
+      <Route
+        path="/hr/change-password"
+        element={
+          <ProtectedRoute allowedRoles={["HR"]}>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Kiosk */}
       <Route
         path="/kiosk"
         element={
           <KioskPage
-            employees={employees}
-
-            onAdminAccess={(role) => {
+            onAdminAccess={(role, mustChangePassword) => {
               if (role === "hr") {
-                navigate("/hr");
+                navigate(mustChangePassword ? "/hr/change-password" : "/hr");
               } else {
                 navigate("/admin");
               }

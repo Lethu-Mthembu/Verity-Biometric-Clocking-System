@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const distDirectory = path.resolve(projectRoot, "..", "dist");
 const entryDocument = path.join(distDirectory, "index.html");
-const routes = ["kiosk", "admin", "dashboard", "onboard", "hr"];
+const routes = ["kiosk", "admin", "dashboard", "onboard", "hr", "hr/change-password"];
 
 for (const route of routes) {
   const routeDirectory = path.join(distDirectory, route);

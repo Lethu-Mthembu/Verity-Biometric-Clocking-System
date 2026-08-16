@@ -21,36 +21,52 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    //register user
-    public async Task<bool> RegisterAsync(RegisterDto dto)
+    public async Task<AuthOperationResult> CreateHrAccountAsync(CreateHrAccountDto dto)
     {
-        var exists = await _context.Users
-            .AnyAsync(x => x.Email == dto.Email);
+        var email = dto.Email.Trim().ToLowerInvariant();
 
-        if (exists)
-            return false;
+        if (await _context.Users.AnyAsync(user => user.Role == UserRole.HR))
+            return new(false, "The HR account has already been configured.");
+
+        if (await _context.Users.AnyAsync(user => user.Email == email))
+            return new(false, "Email already exists.");
 
         var user = new User
         {
-            Email = dto.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            Email = email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.TemporaryPassword),
             IsActive = true,
-            Role = dto.Role
+            Role = UserRole.HR,
+            RequirePasswordChange = true
         };
 
         _context.Users.Add(user);
 
         await _context.SaveChangesAsync();
 
-        return true;
+        return new(true);
+    }
+
+    public async Task<HrAccountStatusDto> GetHrAccountStatusAsync()
+    {
+        var account = await _context.Users
+            .AsNoTracking()
+            .Where(user => user.Role == UserRole.HR && user.IsActive)
+            .Select(user => new { user.Email })
+            .SingleOrDefaultAsync();
+
+        return account is null
+            ? new(false, null)
+            : new(true, account.Email);
     }
 
     //login user
     public async Task<LoginResponseDto?> LoginAsync(LoginDto dto)
     {
+        var email = dto.Email.Trim().ToLowerInvariant();
         var user = await _context.Users
          .FirstOrDefaultAsync(x =>
-             x.Email == dto.Email &&
+             x.Email == email &&
              x.IsActive);
 
         if (user == null)
@@ -68,7 +84,30 @@ public class AuthService : IAuthService
             Token = token,
             UserId = user.Id,
             Email = user.Email,
-            Role = user.Role
+            Role = user.Role,
+            MustChangePassword = user.RequirePasswordChange
+        };
+    }
+
+    public async Task<LoginResponseDto?> ChangePasswordAsync(Guid userId, ChangePasswordDto dto)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(user =>
+            user.Id == userId && user.IsActive && user.Role == UserRole.HR);
+
+        if (user is null || !BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+            return null;
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        user.RequirePasswordChange = false;
+        await _context.SaveChangesAsync();
+
+        return new LoginResponseDto
+        {
+            Token = GenerateJwtToken(user),
+            UserId = user.Id,
+            Email = user.Email,
+            Role = user.Role,
+            MustChangePassword = false
         };
     }
 
@@ -80,6 +119,7 @@ public class AuthService : IAuthService
         new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
         new Claim(ClaimTypes.Email, user.Email),
         new Claim(ClaimTypes.Role, user.Role.ToString()),
+        new Claim("password_change_required", user.RequirePasswordChange ? "true" : "false"),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
     };
 

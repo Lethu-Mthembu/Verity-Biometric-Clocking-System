@@ -35,7 +35,7 @@ const formatDuration = (clockIn, clockOut, now) => {
   return parts.join(' ')
 }
 
-export default function HrDashboardPage({ onLogout }) {
+export default function HrDashboardPage({ onLogout, onChangePassword }) {
   const [query, setQuery] = useState('')
   const [attendanceLogs, setAttendanceLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -92,6 +92,7 @@ export default function HrDashboardPage({ onLogout }) {
         <nav className="mt-10 grid gap-1 text-sm font-semibold">
           <a className="rounded-lg bg-[#245a84] px-3 py-3 text-sky-100">Attendance logs</a>
         </nav>
+        <button onClick={onChangePassword} className="mt-4 px-3 py-2 text-left text-xs font-bold text-slate-300 hover:text-white">Change password</button>
         <button onClick={onLogout} className="mt-auto px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Log out</button>
       </aside>
 

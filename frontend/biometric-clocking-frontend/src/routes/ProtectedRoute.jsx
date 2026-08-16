@@ -46,5 +46,11 @@ export default function ProtectedRoute({ allowedRoles, children }) {
     return <Navigate to="/kiosk" replace />;
   }
 
+  // A newly created HR account can authenticate only to replace its temporary
+  // password. The API enforces this too; this keeps the UI aligned with it.
+  if (role === "hr" && payload?.password_change_required === "true" && location.pathname !== "/hr/change-password") {
+    return <Navigate to="/hr/change-password" replace />;
+  }
+
   return children;
 }

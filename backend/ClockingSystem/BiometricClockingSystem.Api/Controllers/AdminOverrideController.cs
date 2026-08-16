@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BiometricClockingSystem.Api.Controllers;
 
@@ -33,6 +34,7 @@ public class AdminOverrideController : ControllerBase
     // authenticated. The requested clock direction is determined from the
     // employee's current active attendance session.
     [AllowAnonymous]
+    [EnableRateLimiting("kiosk")]
     [HttpPost("notify")]
     public async Task<IActionResult> Notify([FromBody] NotifyAdminRequest request)
     {
@@ -99,6 +101,7 @@ public class AdminOverrideController : ControllerBase
     // The kiosk uses this read-only status check while an employee waits for
     // an administrator. It does not authorize or resolve anything.
     [AllowAnonymous]
+    [EnableRateLimiting("kiosk")]
     [HttpGet("override-requests/{id:int}/status")]
     public async Task<IActionResult> GetRequestStatus(int id, [FromQuery] string? employeeNumber)
     {
@@ -149,6 +152,7 @@ public class AdminOverrideController : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("privileged")]
     [HttpPost("override-requests/{id:int}/resolve")]
     public async Task<IActionResult> Resolve(int id)
     {

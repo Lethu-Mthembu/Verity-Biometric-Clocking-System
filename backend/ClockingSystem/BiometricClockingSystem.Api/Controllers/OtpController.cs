@@ -3,6 +3,8 @@ using BiometricClockingSystem.Api.Models;
 using BiometricClockingSystem.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BiometricClockingSystem.Api.Controllers;
 
@@ -16,6 +18,8 @@ public sealed class OtpController : ControllerBase
     public OtpController(ApplicationDbContext context, IOtpService otpService, IAttendanceService attendanceService) =>
         (_context, _otpService, _attendanceService) = (context, otpService, attendanceService);
 
+    [AllowAnonymous]
+    [EnableRateLimiting("otp")]
     [HttpPost("challenge")]
     public async Task<IActionResult> CreateChallenge([FromBody] CreateOtpChallengeRequest request)
     {
@@ -36,6 +40,8 @@ public sealed class OtpController : ControllerBase
         return Ok(new { challengeId = challenge.Id, expiresAt = challenge.ExpiresAt });
     }
 
+    [AllowAnonymous]
+    [EnableRateLimiting("otp")]
     [HttpPost("verify")]
     public async Task<IActionResult> Verify([FromBody] VerifyOtpRequest request)
     {
