@@ -208,10 +208,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+};
+// Render terminates TLS before forwarding requests to this container. The
+// container is not directly exposed, so its proxy headers can be trusted.
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 if (!app.Environment.IsDevelopment())
     app.UseHsts();
