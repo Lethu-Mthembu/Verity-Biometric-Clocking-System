@@ -248,6 +248,42 @@ namespace BiometricClockingSystem.Api.Migrations
                     b.ToTable("OverrideRequests");
                 });
 
+            modelBuilder.Entity("BiometricClockingSystem.Api.Models.PasskeyCredential", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("CredentialId")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<uint>("SignatureCounter")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("UserHandle")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+                    b.HasIndex("CredentialId").IsUnique();
+                    b.HasIndex("UserId");
+                    b.ToTable("PasskeyCredentials");
+                });
+
             modelBuilder.Entity("BiometricClockingSystem.Api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -335,6 +371,15 @@ namespace BiometricClockingSystem.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("BiometricClockingSystem.Api.Models.PasskeyCredential", b =>
+                {
+                    b.HasOne("BiometricClockingSystem.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

@@ -24,6 +24,7 @@ public class ApplicationDbContext : DbContext
     // Audit log of completed fingerprint overrides.
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<PasskeyCredential> PasskeyCredentials => Set<PasskeyCredential>();
 
     // Fluent API configurations
 
@@ -89,6 +90,20 @@ public class ApplicationDbContext : DbContext
             entity.Property(log => log.ActorEmail).HasMaxLength(256);
             entity.Property(log => log.ClientIpAddress).HasMaxLength(64);
             entity.Property(log => log.Details).HasMaxLength(2000);
+        });
+
+        modelBuilder.Entity<PasskeyCredential>(entity =>
+        {
+            entity.HasKey(credential => credential.Id);
+            entity.HasIndex(credential => credential.UserId);
+            entity.HasIndex(credential => credential.CredentialId).IsUnique();
+            entity.Property(credential => credential.CredentialId).HasColumnType("bytea");
+            entity.Property(credential => credential.PublicKey).HasColumnType("bytea");
+            entity.Property(credential => credential.UserHandle).HasColumnType("bytea");
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(credential => credential.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         //override
         // modelBuilder.Entity<OverrideRequest>(entity =>

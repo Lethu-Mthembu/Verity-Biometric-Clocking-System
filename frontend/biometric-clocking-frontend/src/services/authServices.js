@@ -73,4 +73,10 @@ export const changeHrPassword = async (passwordData) => {
     return response.data;
 };
 
+export const getPasskeyRegistrationOptions = async () => (await API.post('/passkeys/registration/options')).data;
+export const completePasskeyRegistration = async credential => (await API.post('/passkeys/registration/result', credential)).data;
+export const getPasskeyAssertionOptions = async () => (await API.post('/passkeys/assertion/options')).data;
+export const completePasskeyAssertion = async credential => (await API.post('/passkeys/assertion/result', credential)).data;
+export const resetHrPasskey = async () => API.post('/passkeys/hr/reset');
+
 export default API;

@@ -110,17 +110,15 @@ public class AuthService : IAuthService
         user.LockoutEndUtc = null;
         await _context.SaveChangesAsync();
 
-        string token = GenerateJwtToken(user);
-        await _auditService.RecordAsync("LoginSucceeded", "User", user.Id.ToString(), null, user.Id, user.Email);
-
-        return new LoginResponseDto
+        var hasPasskey = await _context.PasskeyCredentials.AnyAsync(credential => credential.UserId == user.Id);
+        if (!hasPasskey)
         {
-            Token = token,
-            UserId = user.Id,
-            Email = user.Email,
-            Role = user.Role,
-            MustChangePassword = user.RequirePasswordChange
-        };
+            await _auditService.RecordAsync("PasskeySetupRequired", "User", user.Id.ToString(), null, user.Id, user.Email);
+            return BuildLoginResponse(user, "PasskeySetup", 5, passkeySetupRequired: true);
+        }
+
+        await _auditService.RecordAsync("PasswordVerified", "User", user.Id.ToString(), "Passkey verification required.", user.Id, user.Email);
+        return BuildLoginResponse(user, "PasskeyChallenge", 5, requiresPasskey: true);
     }
 
     public async Task<LoginResponseDto?> ChangePasswordAsync(Guid userId, ChangePasswordDto dto)
@@ -137,14 +135,25 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
         await _auditService.RecordAsync("PasswordChanged", "User", user.Id.ToString(), null, user.Id, user.Email);
 
-        return new LoginResponseDto
-        {
-            Token = GenerateJwtToken(user),
-            UserId = user.Id,
-            Email = user.Email,
-            Role = user.Role,
-            MustChangePassword = false
-        };
+        return BuildLoginResponse(user);
+    }
+
+    public async Task<LoginResponseDto?> CompletePasskeyChallengeAsync(Guid userId, bool enrolledNewPasskey)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(user => user.Id == userId && user.IsActive);
+        if (user is null) return null;
+
+        user.SecurityStamp = Guid.NewGuid().ToString("N");
+        await _context.SaveChangesAsync();
+        await _auditService.RecordAsync(
+            enrolledNewPasskey ? "PasskeyEnrolled" : "PasskeyLoginSucceeded",
+            "User",
+            user.Id.ToString(),
+            null,
+            user.Id,
+            user.Email);
+
+        return BuildLoginResponse(user);
     }
 
     public async Task LogoutAsync(Guid userId)
@@ -158,13 +167,24 @@ public class AuthService : IAuthService
     }
 
     //token generation
-    private string GenerateJwtToken(User user)
+    private LoginResponseDto BuildLoginResponse(User user, string? roleOverride = null, int? lifetimeMinutes = null, bool requiresPasskey = false, bool passkeySetupRequired = false) => new()
+    {
+        Token = GenerateJwtToken(user, roleOverride, lifetimeMinutes),
+        UserId = user.Id,
+        Email = user.Email,
+        Role = user.Role,
+        MustChangePassword = user.RequirePasswordChange,
+        RequiresPasskey = requiresPasskey,
+        PasskeySetupRequired = passkeySetupRequired
+    };
+
+    private string GenerateJwtToken(User user, string? roleOverride = null, int? lifetimeMinutes = null)
     {
         var claims = new[]
         {
         new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
         new Claim(ClaimTypes.Email, user.Email),
-        new Claim(ClaimTypes.Role, user.Role.ToString()),
+        new Claim(ClaimTypes.Role, roleOverride ?? user.Role.ToString()),
         new Claim("password_change_required", user.RequirePasswordChange ? "true" : "false"),
         new Claim("security_stamp", user.SecurityStamp),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
@@ -183,7 +203,7 @@ public class AuthService : IAuthService
             issuer: _configuration["Jwt:Issuer"],
             audience: _configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(GetAccessTokenLifetimeMinutes()),
+            expires: DateTime.UtcNow.AddMinutes(lifetimeMinutes ?? GetAccessTokenLifetimeMinutes()),
             signingCredentials: credentials
         );
 

@@ -14,7 +14,7 @@ export async function loadFaceModels() {
   loaded = true   // marks models as loaded so future calls skip straight to using them
 }
 
-export async function getFaceDescriptor(videoOrImage) {
+export async function getFaceScan(videoOrImage) {
   const detection = await faceapi
     .detectSingleFace(videoOrImage, new faceapi.TinyFaceDetectorOptions())   // finds one face in the video/image
     .withFaceLandmarks()     // adds landmark points (eyes, nose, mouth) to the detection
@@ -29,5 +29,13 @@ export async function getFaceDescriptor(videoOrImage) {
 
   if (!isValidDescriptor) return null
 
-  return descriptor   // exactly 128 numeric values as a plain array, safe to send as JSON
+  return {
+    descriptor,
+    landmarks: detection.landmarks.positions.map(point => ({ x: point.x, y: point.y }))
+  }
+}
+
+export async function getFaceDescriptor(videoOrImage) {
+  const scan = await getFaceScan(videoOrImage)
+  return scan?.descriptor || null   // exactly 128 numeric values as a plain array, safe to send as JSON
 }

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Fido2NetLib;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,6 +92,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IPasskeyService, PasskeyService>();
+builder.Services.AddFido2(options =>
+{
+    options.ServerDomain = builder.Configuration["WebAuthn:RpId"] ?? "biometric-attendance-side-web.onrender.com";
+    options.ServerName = "Verity Attendance";
+    options.Origins = new HashSet<string>
+    {
+        builder.Configuration["WebAuthn:Origin"] ?? "https://biometric-attendance-side-web.onrender.com"
+    };
+});
 //builder.Services.AddSingleton<BiometricClockingSystem.Api.Services.IFacialRecognitionService,
    // BiometricClockingSystem.Api.Services.FacialRecognitionService>();
 builder.Services.AddMemoryCache();

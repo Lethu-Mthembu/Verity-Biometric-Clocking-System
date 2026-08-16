@@ -8,6 +8,7 @@ import HrDashboard from "../features/hr/pages/HrDashboard";
 import KioskPage from "../features/kiosk/pages/KioskPage";
 import OnboardPage from "../features/onboarding/pages/OnboardPage";
 import ChangePasswordPage from "../features/hr/pages/ChangePasswordPage";
+import PasskeyEnrollmentPage from "../features/auth/pages/PasskeyEnrollmentPage";
 import ProtectedRoute from "./ProtectedRoute";
 
 
@@ -194,13 +195,33 @@ function AppRoutes() {
         }
       />
 
+      <Route
+        path="/security/passkey-enroll"
+        element={
+          <ProtectedRoute allowedRoles={["PasskeySetup"]}>
+            <PasskeyEnrollmentPage onComplete={auth => {
+              localStorage.setItem("token", auth.token);
+              localStorage.setItem("userId", auth.userId);
+              localStorage.setItem("role", auth.role);
+              if (String(auth.role).toLowerCase() === "hr" && auth.mustChangePassword) {
+                navigate("/hr/change-password", { replace: true });
+              } else {
+                navigate(String(auth.role).toLowerCase() === "hr" ? "/hr" : "/admin", { replace: true });
+              }
+            }} />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Kiosk */}
       <Route
         path="/kiosk"
         element={
           <KioskPage
             onAdminAccess={(role, mustChangePassword) => {
-              if (role === "hr") {
+              if (role === "passkey-setup") {
+                navigate("/security/passkey-enroll");
+              } else if (role === "hr") {
                 navigate(mustChangePassword ? "/hr/change-password" : "/hr");
               } else {
                 navigate("/admin");

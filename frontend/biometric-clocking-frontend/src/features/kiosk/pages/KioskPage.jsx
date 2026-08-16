@@ -2,10 +2,63 @@ import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import Modal from '../../../shared/components/Modal'
 import backGr from "../../../assests/main-background.jpeg";
-import { loadFaceModels, getFaceDescriptor } from '../../../shared/lib/faceModels'
+import { loadFaceModels, getFaceScan } from '../../../shared/lib/faceModels'
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { getCurrentLocation, getLocationName } from "../../../services/locationService";
-import API, { login } from '../../../services/authServices'
+import API, { clearAuthState, completePasskeyAssertion, getPasskeyAssertionOptions, login } from '../../../services/authServices'
+import { getPasskeyAssertion } from '../../../shared/lib/passkeys'
+
+const initialLivenessState = () => ({ step: 'wait-open', sawOpenEyes: false })
+
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function eyeAspectRatio(points) {
+  const eyeRatio = start => {
+    const eye = points.slice(start, start + 6)
+    if (eye.length !== 6) return 0
+    return (distance(eye[1], eye[5]) + distance(eye[2], eye[4])) / (2 * distance(eye[0], eye[3]))
+  }
+  return (eyeRatio(36) + eyeRatio(42)) / 2
+}
+
+function updateLiveness(landmarks, state) {
+  const eyeRatio = eyeAspectRatio(landmarks)
+  if (state.step === 'wait-open') {
+    if (eyeRatio > 0.22) state.sawOpenEyes = true
+    if (!state.sawOpenEyes) return 'Look at the camera to begin the live check...'
+    state.step = 'blink'
+    return 'Live check: close both eyes briefly, then open them.'
+  }
+  if (state.step === 'blink') {
+    if (eyeRatio < 0.18) {
+      state.step = 'blink-open'
+      return 'Live check: open your eyes.'
+    }
+    return 'Live check: close both eyes briefly, then open them.'
+  }
+  if (state.step === 'blink-open') {
+    if (eyeRatio > 0.22) {
+      state.step = 'turn-head'
+      return 'Live check: turn your head left or right.'
+    }
+    return 'Live check: open your eyes.'
+  }
+  if (state.step === 'turn-head') {
+    const leftEye = landmarks[39]
+    const rightEye = landmarks[42]
+    const nose = landmarks[30]
+    if (!leftEye || !rightEye || !nose) return 'Live check: turn your head left or right.'
+    const ratio = distance(nose, leftEye) / Math.max(distance(nose, leftEye) + distance(nose, rightEye), 1)
+    if (ratio < 0.34 || ratio > 0.66) {
+      state.step = 'complete'
+      return 'Live check complete. Verifying face...'
+    }
+    return 'Live check: turn your head left or right.'
+  }
+  return 'Live check complete. Verifying face...'
+}
 
 
 function AdminLogin({ onClose, onLogin }) {
@@ -15,25 +68,40 @@ function AdminLogin({ onClose, onLogin }) {
   const [showPassword, setShowPassword] = useState("");
   const [error, setError] = useState('')
   const [loggingIn, setLoggingIn] = useState(false)
+  const [passkeyPending, setPasskeyPending] = useState(false)
+
+  const storeAuth = auth => {
+    localStorage.setItem('token', auth.token)
+    localStorage.setItem('userId', auth.userId)
+    localStorage.setItem('role', auth.role)
+  }
+
+  const enterPortal = async auth => {
+    storeAuth(auth)
+    const coords = await getCurrentLocation()
+    const locationName = await getLocationName(coords.latitude, coords.longitude)
+    sessionStorage.setItem('currentLocation', locationName)
+    onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin', Boolean(auth.mustChangePassword))
+  }
+
   const loginRole = async () => {
     if (!email.trim() || !password || loggingIn) return
     setLoggingIn(true)
     setError('')
     try {
       const auth = await login({ email: email.trim(), password })
-      localStorage.setItem('token', auth.token)
-      localStorage.setItem('userId', auth.userId)
-      localStorage.setItem('role', auth.role)
-      const coords = await getCurrentLocation();
-
-      const locationName = await getLocationName(
-        coords.latitude,
-        coords.longitude
-      );
-
-      sessionStorage.setItem("currentLocation", locationName);
-
-      onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin', Boolean(auth.mustChangePassword));
+      if (auth.passkeySetupRequired) {
+        storeAuth(auth)
+        localStorage.setItem('role', 'PasskeySetup')
+        onLogin('passkey-setup', Boolean(auth.mustChangePassword))
+        return
+      }
+      if (auth.requiresPasskey) {
+        storeAuth(auth)
+        setPasskeyPending(true)
+        return
+      }
+      await enterPortal(auth)
 
     } catch (error) {
       console.error(error);
@@ -43,33 +111,49 @@ function AdminLogin({ onClose, onLogin }) {
     }
   };
 
+  const verifyPasskey = async () => {
+    setLoggingIn(true)
+    setError('')
+    try {
+      const options = await getPasskeyAssertionOptions()
+      const credential = await getPasskeyAssertion(options)
+      const auth = await completePasskeyAssertion(credential)
+      await enterPortal(auth)
+    } catch (error) {
+      clearAuthState()
+      setPasskeyPending(false)
+      setError(error.response?.data?.message || error.message || 'Passkey verification was not completed.')
+    } finally {
+      setLoggingIn(false)
+    }
+  }
+
   return (
     <Modal onClose={onClose}>
       <h2 className="text-xl font-bold text-white">Admin access</h2>
       <p className="mt-2 text-sm leading-6 text-slate-400">Sign in to manage employee records and attendance.</p>
-      <label className="mt-6 block text-[10px] font-bold">EMAIL OR USERNAME</label>
-      <input value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-lg bg-[#09192c] px-3 py-3 text-sm outline-none" placeholder="admin@verity.co" />
-      <label className="mt-4 block text-[10px] font-bold">PASSWORD</label>
-      <div className="password-container">
-        <input
-          type={showPassword ? "text" : "password"}
-          name="password"
-          value={password}
-          onChange={event => setPassword(event.target.value)}
-          placeholder="......"
-          className="password-input"
-        />
+      {!passkeyPending && <>
+        <label className="mt-6 block text-[10px] font-bold">EMAIL OR USERNAME</label>
+        <input value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-lg bg-[#09192c] px-3 py-3 text-sm outline-none" placeholder="admin@verity.co" />
+        <label className="mt-4 block text-[10px] font-bold">PASSWORD</label>
+        <div className="password-container">
+          <input
+            type={showPassword ? "text" : "password"}
+            name="password"
+            value={password}
+            onChange={event => setPassword(event.target.value)}
+            placeholder="......"
+            className="password-input"
+          />
 
-        <button
-          type="button"
-          className="password-toggle"
-          onClick={() => setShowPassword(!showPassword)}
-        >
-          {showPassword ? <FaEyeSlash /> : <FaEye />}
-        </button>
-      </div>
+          <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+          </button>
+        </div>
+      </>}
+      {passkeyPending && <p className="mt-5 text-sm leading-6 text-slate-300">Password confirmed. Use the passkey on this device to finish signing in.</p>}
       {error && <p className="mt-3 text-xs font-bold text-rose-400">{error}</p>}
-      <button disabled={!email.trim() || !password || loggingIn} onClick={loginRole} className="mt-5 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white hover:bg-sky-500 disabled:opacity-40">{loggingIn ? 'Logging in...' : 'Log in'}</button>
+      <button disabled={(!email.trim() || !password) && !passkeyPending || loggingIn} onClick={passkeyPending ? verifyPasskey : loginRole} className="mt-5 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white hover:bg-sky-500 disabled:opacity-40">{loggingIn ? 'Please wait...' : passkeyPending ? 'Verify passkey' : 'Log in'}</button>
     </Modal>
   )
 }
@@ -178,6 +262,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
   const canvasRef = useRef(null)
   const faceCheckStartedRef = useRef(false)
   const waitForFaceToLeaveRef = useRef(false)
+  const livenessRef = useRef(initialLivenessState())
   const [now, setNow] = useState(new Date());
   const [otp, setOtp] = useState('');
   const [modal, setModal] = useState(null);
@@ -204,6 +289,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
     setMatchedEmployeeNumber(null)
     setMatchedEmployee(null)
     faceCheckStartedRef.current = false;
+    livenessRef.current = initialLivenessState()
     setCameraRetryKey(value => value + 1)
   }
 
@@ -225,22 +311,23 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
         return { descriptor: null, message: 'Camera is starting. Please wait...' }   // camera not ready yet
       }
 
-      const descriptor = await getFaceDescriptor(video)   // run face-api.js directly on the live video frame
-      if (!descriptor) {
-        return { descriptor: null, message: 'No face detected. Face the camera.' }   // face-api.js found no face
+      const scan = await getFaceScan(video)   // run face-api.js directly on the live video frame
+      if (!scan) {
+        return { descriptor: null, landmarks: null, message: 'No face detected. Face the camera.' }   // face-api.js found no face
       }
 
-      return { descriptor, message: 'Face detected. Verifying...' }   // got a usable descriptor
+      return { descriptor: scan.descriptor, landmarks: scan.landmarks, message: 'Face detected. Verifying...' }   // got a usable descriptor
     }
 
     const verifyFace = async () => {
       if (stopped || faceCheckStartedRef.current) return   // skip if already checking or camera stopped
       faceCheckStartedRef.current = true   // lock so this doesn't run again until finished
-      const { descriptor, message } = await captureFrame()   // get the 128-number descriptor from the current frame
+      const { descriptor, landmarks, message } = await captureFrame()   // get the 128-number descriptor from the current frame
 
       if (waitForFaceToLeaveRef.current) {
         if (!descriptor) {
           waitForFaceToLeaveRef.current = false
+          livenessRef.current = initialLivenessState()
           setFaceStatus('Ready for the next scan.')
         } else {
           setFaceStatus('Step away from the camera to re-arm the kiosk.')
@@ -250,8 +337,15 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
       }
 
       if (!descriptor) {
+        livenessRef.current = initialLivenessState()
         faceCheckStartedRef.current = false   // unlock so the next interval tick can try again
         setFaceStatus(message)   // show why it didn't work (camera starting / no face)
+        return
+      }
+
+      if (livenessRef.current.step !== 'complete') {
+        setFaceStatus(updateLiveness(landmarks, livenessRef.current))
+        faceCheckStartedRef.current = false
         return
       }
 
@@ -290,6 +384,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
         setCameraError('')
         setFaceStatus('Looking for face...')
         faceCheckStartedRef.current = false
+        livenessRef.current = initialLivenessState()
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
         if (!videoRef.current) return
 
@@ -299,7 +394,7 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
           setFaceStatus('Looking for face...')
           const check = setInterval(() => {
             if (!stopped && !faceCheckStartedRef.current) verifyFace()
-          }, 1400)
+          }, 650)
           videoRef.current.dataset.faceCheck = String(check)
         }
       } catch {
