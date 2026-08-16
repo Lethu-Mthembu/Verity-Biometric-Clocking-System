@@ -114,10 +114,6 @@ export default function HrDashboardPage({ onLogout, onChangePassword }) {
 
   const selectRange = value => {
     setRange(value)
-    if (value === 'custom' && !customStart && !customEnd) {
-      setCustomStart(toDateInput(new Date(Date.now() - 6 * 86400000)))
-      setCustomEnd(toDateInput(new Date()))
-    }
   }
 
   const currentDate = new Intl.DateTimeFormat(undefined, {

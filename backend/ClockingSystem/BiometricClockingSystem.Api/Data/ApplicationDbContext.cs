@@ -23,6 +23,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<AdminOverride> AdminOverrides => Set<AdminOverride>();
     // Audit log of completed fingerprint overrides.
 
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     // Fluent API configurations
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -71,7 +73,23 @@ public class ApplicationDbContext : DbContext
 
                    entity.Property(u => u.FingerprintTemplate)
                          .HasColumnType("bytea");
+
+                   entity.Property(u => u.SecurityStamp)
+                         .HasMaxLength(64);
                });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(log => log.Id);
+            entity.HasIndex(log => log.OccurredAt);
+            entity.HasIndex(log => new { log.TargetType, log.TargetId });
+            entity.Property(log => log.Action).HasMaxLength(100);
+            entity.Property(log => log.TargetType).HasMaxLength(100);
+            entity.Property(log => log.TargetId).HasMaxLength(256);
+            entity.Property(log => log.ActorEmail).HasMaxLength(256);
+            entity.Property(log => log.ClientIpAddress).HasMaxLength(64);
+            entity.Property(log => log.Details).HasMaxLength(2000);
+        });
         //override
         // modelBuilder.Entity<OverrideRequest>(entity =>
         //{

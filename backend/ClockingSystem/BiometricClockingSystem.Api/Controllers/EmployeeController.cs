@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using BiometricClockingSystem.Api.DTOs.Employee;
 using BiometricClockingSystem.Api.Services;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Security.Claims;
 
 namespace BiometricClockingSystem.Api.Controllers;
 
@@ -13,11 +15,14 @@ namespace BiometricClockingSystem.Api.Controllers;
 public class EmployeeController : ControllerBase
 {
     private const int MaxFaceImageBytes = 5 * 1024 * 1024;
+    private const int MaxFaceUploadBytes = 7 * 1024 * 1024;
     private readonly ApplicationDbContext _context;
+    private readonly IAuditService _auditService;
 
-    public EmployeeController(ApplicationDbContext context)
+    public EmployeeController(ApplicationDbContext context, IAuditService auditService)
     {
         _context = context;
+        _auditService = auditService;
     }
 
     //GET ALL
@@ -70,7 +75,10 @@ public class EmployeeController : ControllerBase
     //CREATE: api/Employee
     // POST: api/Employee
     [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("privileged")]
     [HttpPost]
+    [Consumes("application/json")]
+    [RequestSizeLimit(MaxFaceUploadBytes)]
     public async Task<IActionResult> CreateEmployee(CreateEmployeeDto dto)
     {
         if (!IsValidDescriptor(dto.FaceDescriptor))
@@ -108,12 +116,15 @@ public class EmployeeController : ControllerBase
             FaceDescriptor = dto.FaceDescriptor,
             FaceImage = faceImage,
             CreatedAt = DateTime.UtcNow,
-            IsActive = true
+            IsActive = true,
+            RegisteredOn = DateTime.UtcNow,
+            RegisteredByAdminUsername = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty
         };
 
         _context.Employees.Add(employee);
 
         await _context.SaveChangesAsync();
+        await _auditService.RecordAsync("EmployeeCreated", "Employee", employee.EmployeeNumber);
 
         return Ok(new
         {
@@ -126,7 +137,10 @@ public class EmployeeController : ControllerBase
     //UPDATE: api/Employee/{id}
     // PUT: api/Employee/{id}
     [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("privileged")]
     [HttpPut("{employeeNumber}")]
+    [Consumes("application/json")]
+    [RequestSizeLimit(MaxFaceUploadBytes)]
     public async Task<IActionResult> UpdateEmployee(String employeeNumber, UpdateEmployeeDto dto)
     {
         var employee = await _context.Employees
@@ -162,6 +176,7 @@ public class EmployeeController : ControllerBase
         employee.FaceDescriptor = dto.FaceDescriptor;
 
         await _context.SaveChangesAsync();
+        await _auditService.RecordAsync("EmployeeUpdated", "Employee", employee.EmployeeNumber);
 
         return Ok(new
         {
@@ -173,6 +188,7 @@ public class EmployeeController : ControllerBase
 
     // DELETE: api/Employee/{id}
     [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("privileged")]
     [HttpDelete("{employeeNumber}")]
     public async Task<IActionResult> DeleteEmployee(String employeeNumber)
     {
@@ -190,6 +206,7 @@ public class EmployeeController : ControllerBase
         employee.IsActive = false;
 
         await _context.SaveChangesAsync();
+        await _auditService.RecordAsync("EmployeeDeactivated", "Employee", employee.EmployeeNumber);
 
         return Ok(new
         {
@@ -200,14 +217,15 @@ public class EmployeeController : ControllerBase
 
     private static byte[] ConvertBase64ToBytes(string base64)
     {
-        var commaIndex = base64.IndexOf(',');
+        const string jpegPrefix = "data:image/jpeg;base64,";
+        if (!base64.StartsWith(jpegPrefix, StringComparison.OrdinalIgnoreCase))
+            throw new FormatException("Only JPEG webcam captures are accepted.");
 
-        if (commaIndex >= 0)
-        {
-            base64 = base64[(commaIndex + 1)..];
-        }
+        var bytes = Convert.FromBase64String(base64[jpegPrefix.Length..]);
+        if (bytes.Length < 3 || bytes[0] != 0xFF || bytes[1] != 0xD8 || bytes[2] != 0xFF)
+            throw new FormatException("Invalid JPEG image.");
 
-        return Convert.FromBase64String(base64);
+        return bytes;
     }
 
     private static bool IsValidDescriptor(float[]? descriptor) =>

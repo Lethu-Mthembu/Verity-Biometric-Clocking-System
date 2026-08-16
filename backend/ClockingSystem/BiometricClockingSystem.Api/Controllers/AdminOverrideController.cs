@@ -19,15 +19,18 @@ public class AdminOverrideController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IAttendanceService _attendanceService;
     private readonly AdminNotificationService _notifications;
+    private readonly IAuditService _auditService;
 
     public AdminOverrideController(
         ApplicationDbContext context,
         IAttendanceService attendanceService,
-        AdminNotificationService notifications)
+        AdminNotificationService notifications,
+        IAuditService auditService)
     {
         _context = context;
         _attendanceService = attendanceService;
         _notifications = notifications;
+        _auditService = auditService;
     }
 
     // This is intentionally anonymous: an employee at the kiosk has not yet
@@ -47,6 +50,27 @@ public class AdminOverrideController : ControllerBase
 
         if (employee == null)
             return NotFound(new { success = false, message = "Employee not found." });
+
+        // Reuse an unresolved request instead of creating a new queue entry
+        // every time an unattended kiosk is tapped.
+        var existingRequest = await _context.OverrideRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(request => request.EmployeeId == employee.EmployeeNumber && request.Status == OverrideRequestStatus.Pending);
+        if (existingRequest is not null)
+        {
+            _notifications.Publish(new AdminOverrideNotification(
+                existingRequest.OverrideRequestId,
+                existingRequest.EmployeeId,
+                existingRequest.RequestedClockType.ToString(),
+                existingRequest.RequestedAt));
+
+            return Ok(new
+            {
+                success = true,
+                overrideRequestId = existingRequest.OverrideRequestId,
+                requestedClockType = existingRequest.RequestedClockType
+            });
+        }
 
         var overrideRequest = new OverrideRequest
         {
@@ -208,6 +232,7 @@ public class AdminOverrideController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+        await _auditService.RecordAsync("OverrideResolved", "OverrideRequest", overrideRequest.OverrideRequestId.ToString(), $"{overrideRequest.RequestedClockType} approved for {overrideRequest.EmployeeId}.", admin.Id, admin.Email);
         return Ok(new { success = true, message = "Override approved.", attendanceId = attendance.AttendanceId });
     }
 

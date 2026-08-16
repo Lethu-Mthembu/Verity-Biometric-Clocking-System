@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { getEmployees } from "../services/employeeService";
+import { logout } from "../services/authServices";
 
 import Dashboard from "../features/dashboard/pages/Dashboard";
 import HrDashboard from "../features/hr/pages/HrDashboard";
@@ -37,7 +38,6 @@ function AppRoutes() {
   useEffect(() => {
     const isAdmin = String(localStorage.getItem("role") || "").toLowerCase() === "admin";
     if (!isAdmin) {
-      setEmployees([]);
       return undefined;
     }
 
@@ -56,6 +56,13 @@ function AppRoutes() {
   }, [location.pathname]);
 
   const [pendingAdminRequest, setPendingAdminRequest] = useState(null);
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate("/");
+    }
+  };
 
   return (
     <Routes>
@@ -93,11 +100,7 @@ function AppRoutes() {
                 })
               }
 
-              onLogout={() => {
-                localStorage.removeItem("token");
-                localStorage.removeItem("role");
-                navigate("/");
-              }}
+              onLogout={handleLogout}
 
               onOnboard={() =>
                 navigate("/onboard", {
@@ -139,11 +142,7 @@ function AppRoutes() {
                 })
               }
 
-              onLogout={() => {
-                localStorage.removeItem("token");
-                localStorage.removeItem("role");
-                navigate("/");
-              }}
+              onLogout={handleLogout}
 
               onOnboard={() =>
                 navigate("/onboard", {
@@ -180,11 +179,7 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={["HR"]}>
             <HrDashboard
               onChangePassword={() => navigate("/hr/change-password")}
-              onLogout={() => {
-                localStorage.removeItem("token");
-                localStorage.removeItem("role");
-                navigate("/");
-              }}
+              onLogout={handleLogout}
             />
           </ProtectedRoute>
         }

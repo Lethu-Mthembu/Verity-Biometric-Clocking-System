@@ -63,6 +63,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 context.Request.Path);
 
             return Task.CompletedTask;
+        },
+        OnTokenValidated = async context =>
+        {
+            var subject = context.Principal?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
+                ?? context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var securityStamp = context.Principal?.FindFirst("security_stamp")?.Value;
+
+            if (!Guid.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(securityStamp))
+            {
+                context.Fail("The authentication token is invalid.");
+                return;
+            }
+
+            var db = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+            var isCurrentSession = await db.Users.AsNoTracking().AnyAsync(user =>
+                user.Id == userId && user.IsActive && user.SecurityStamp == securityStamp);
+
+            if (!isCurrentSession)
+                context.Fail("The authentication session has expired.");
         }
     };
 });
@@ -70,6 +89,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditService, AuditService>();
 //builder.Services.AddSingleton<BiometricClockingSystem.Api.Services.IFacialRecognitionService,
    // BiometricClockingSystem.Api.Services.FacialRecognitionService>();
 builder.Services.AddMemoryCache();
@@ -110,6 +131,13 @@ builder.Services.AddCors(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { message = "Too many requests. Please wait and try again." },
+            cancellationToken);
+    };
     options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
         ClientPartitionKey(context), _ => new FixedWindowRateLimiterOptions
         {
@@ -219,7 +247,20 @@ forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
 if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+    {
+        var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        app.Logger.LogError(exception, "Unhandled request error. TraceId: {TraceId}", context.TraceIdentifier);
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            message = "An unexpected server error occurred.",
+            traceId = context.TraceIdentifier
+        });
+    }));
     app.UseHsts();
+}
 
 app.UseHttpsRedirection();
 

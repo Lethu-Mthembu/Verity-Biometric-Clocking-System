@@ -6,6 +6,11 @@ const API = axios.create({
 
     baseURL: import.meta.env.VITE_API_URL,
 });
+export const clearAuthState = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("role");
+};
 export const getApiUrl = (path = "") =>
     `${API.defaults.baseURL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -27,9 +32,7 @@ API.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401 && localStorage.getItem("token")) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("userId");
-            localStorage.removeItem("role");
+            clearAuthState();
 
             if (["/admin", "/dashboard", "/onboard", "/hr"].includes(window.location.pathname)) {
                 window.location.assign("/kiosk");
@@ -43,6 +46,16 @@ API.interceptors.response.use(
 export const login = async (loginData) => {
     const response = await API.post("/Auth/login", loginData);
     return response.data;
+};
+
+// Server-side invalidation complements clearing the local browser state. If
+// the network is unavailable, the local logout still completes immediately.
+export const logout = async () => {
+    try {
+        await API.post("/Auth/logout");
+    } finally {
+        clearAuthState();
+    }
 };
 
 export const getHrAccountStatus = async () => {

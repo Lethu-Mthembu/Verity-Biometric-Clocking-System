@@ -211,9 +211,12 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
   }, [])
 
   useEffect(() => {
-    loadAttendanceLogs()
+    const initialLoadTimer = setTimeout(loadAttendanceLogs, 0)
     const refreshTimer = setInterval(loadAttendanceLogs, 15000)
-    return () => clearInterval(refreshTimer)
+    return () => {
+      clearTimeout(initialLoadTimer)
+      clearInterval(refreshTimer)
+    }
   }, [loadAttendanceLogs])
 
   const directoryEmployees = useMemo(() => {

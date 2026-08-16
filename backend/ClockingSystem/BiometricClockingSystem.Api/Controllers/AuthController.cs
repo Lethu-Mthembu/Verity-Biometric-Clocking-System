@@ -36,6 +36,7 @@ public class AuthController : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("privileged")]
     [HttpGet("hr-account")]
     public async Task<ActionResult<HrAccountStatusDto>> GetHrAccountStatus() =>
         Ok(await _authService.GetHrAccountStatusAsync());
@@ -69,5 +70,19 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Current password is incorrect." });
 
         return Ok(result);
+    }
+
+    [Authorize]
+    [EnableRateLimiting("privileged")]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        var userIdValue = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdValue, out var userId))
+            return Unauthorized(new { message = "Invalid user identity." });
+
+        await _authService.LogoutAsync(userId);
+        return NoContent();
     }
 }

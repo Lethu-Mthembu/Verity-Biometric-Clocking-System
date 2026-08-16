@@ -35,6 +35,15 @@ public sealed class OtpService : IOtpService
 
     public async Task<OtpChallenge> CreateAsync(string employeeId, ClockType clockType)
     {
+        // Face verification can retry while the user is still in front of the
+        // kiosk. Do not send another paid email or replace a valid code.
+        if (TryGetChallengeForEmployee(employeeId, out var existingChallenge) &&
+            existingChallenge.ClockType == clockType &&
+            existingChallenge.ExpiresAt > DateTime.UtcNow)
+        {
+            return existingChallenge;
+        }
+
         var emailAddress = await _context.Employees
             .Where(employee => employee.EmployeeNumber == employeeId && employee.IsActive)
             .Select(employee => employee.Email)

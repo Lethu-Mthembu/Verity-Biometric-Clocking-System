@@ -52,6 +52,7 @@ public sealed class FaceController : ControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("kiosk")]
     [Consumes("application/json")]
+    [RequestSizeLimit(32 * 1024)]
     public async Task<IActionResult> VerifyJson([FromBody] FaceVerificationRequest request)
     {
         if (request.Descriptor is null || request.Descriptor.Length != 128 || !request.Descriptor.All(float.IsFinite))
