@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace BiometricClockingSystem.Api.Services;
@@ -110,12 +111,14 @@ public class AuthService : IAuthService
         user.LockoutEndUtc = null;
         await _context.SaveChangesAsync();
 
-        string token = GenerateJwtToken(user);
+        var csrfToken = GenerateCsrfToken();
+        string token = GenerateJwtToken(user, csrfToken);
         await _auditService.RecordAsync("LoginSucceeded", "User", user.Id.ToString(), null, user.Id, user.Email);
 
         return new LoginResponseDto
         {
             Token = token,
+            CsrfToken = csrfToken,
             UserId = user.Id,
             Email = user.Email,
             Role = user.Role,
@@ -137,9 +140,11 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
         await _auditService.RecordAsync("PasswordChanged", "User", user.Id.ToString(), null, user.Id, user.Email);
 
+        var csrfToken = GenerateCsrfToken();
         return new LoginResponseDto
         {
-            Token = GenerateJwtToken(user),
+            Token = GenerateJwtToken(user, csrfToken),
+            CsrfToken = csrfToken,
             UserId = user.Id,
             Email = user.Email,
             Role = user.Role,
@@ -158,7 +163,7 @@ public class AuthService : IAuthService
     }
 
     //token generation
-    private string GenerateJwtToken(User user)
+    private string GenerateJwtToken(User user, string csrfToken)
     {
         var claims = new[]
         {
@@ -167,6 +172,7 @@ public class AuthService : IAuthService
         new Claim(ClaimTypes.Role, user.Role.ToString()),
         new Claim("password_change_required", user.RequirePasswordChange ? "true" : "false"),
         new Claim("security_stamp", user.SecurityStamp),
+        new Claim("csrf", csrfToken),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
     };
 
@@ -195,6 +201,8 @@ public class AuthService : IAuthService
         var configured = _configuration.GetValue<int?>("Jwt:AccessTokenMinutes") ?? 30;
         return Math.Clamp(configured, 5, 60);
     }
+
+    private static string GenerateCsrfToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
    
 }

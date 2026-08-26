@@ -1,53 +1,53 @@
 import axios from "axios";
 
-const API = axios.create({
+// The JWT is intentionally never available to JavaScript. The API issues it
+// as a Secure, HttpOnly cookie and this value protects authenticated writes.
+let csrfToken = null;
 
+const API = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
+    withCredentials: true,
 });
+
 export const clearAuthState = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("role");
+    csrfToken = null;
 };
+
+const rememberSession = session => {
+    csrfToken = session?.csrfToken || null;
+    return session;
+};
+
 export const getApiUrl = (path = "") =>
     `${API.defaults.baseURL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 
-// Attach the logged-in user's token (if any) to every request. Harmless for
-// endpoints that don't require auth, and means anything made [Authorize]
-// later just works without touching call sites again.
 API.interceptors.request.use((config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+    const method = String(config.method || "get").toUpperCase();
+    if (!["GET", "HEAD", "OPTIONS"].includes(method) && csrfToken) {
+        config.headers["X-CSRF-Token"] = csrfToken;
     }
     return config;
 });
 
-// A token can outlive the deployment that issued it. Clear it when a
-// protected request is rejected so the dashboard does not remain open while
-// its admin notification requests and stream are silently unauthorized.
 API.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401 && localStorage.getItem("token")) {
+    response => response,
+    error => {
+        if (error.response?.status === 401) {
             clearAuthState();
-
-            if (["/admin", "/dashboard", "/onboard", "/hr"].includes(window.location.pathname)) {
+            if (["/admin", "/dashboard", "/onboard", "/hr", "/hr/change-password"].includes(window.location.pathname)) {
                 window.location.assign("/kiosk");
             }
         }
-
         return Promise.reject(error);
     }
 );
 
-export const login = async (loginData) => {
-    const response = await API.post("/Auth/login", loginData);
-    return response.data;
-};
+export const login = async loginData =>
+    rememberSession((await API.post("/Auth/login", loginData)).data);
 
-// Server-side invalidation complements clearing the local browser state. If
-// the network is unavailable, the local logout still completes immediately.
+export const getSession = async () =>
+    rememberSession((await API.get("/Auth/session")).data);
+
 export const logout = async () => {
     try {
         await API.post("/Auth/logout");
@@ -56,19 +56,9 @@ export const logout = async () => {
     }
 };
 
-export const getHrAccountStatus = async () => {
-    const response = await API.get("/Auth/hr-account");
-    return response.data;
-};
-
-export const createHrAccount = async (accountData) => {
-    const response = await API.post("/Auth/hr-account", accountData);
-    return response.data;
-};
-
-export const changeHrPassword = async (passwordData) => {
-    const response = await API.post("/Auth/change-password", passwordData);
-    return response.data;
-};
+export const getHrAccountStatus = async () => (await API.get("/Auth/hr-account")).data;
+export const createHrAccount = async accountData => (await API.post("/Auth/hr-account", accountData)).data;
+export const changeHrPassword = async passwordData =>
+    rememberSession((await API.post("/Auth/change-password", passwordData)).data);
 
 export default API;

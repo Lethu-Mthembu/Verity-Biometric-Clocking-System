@@ -269,12 +269,9 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
       }
     }
 
-    const token = localStorage.getItem('token')
-    if (token) {
-      loadPendingRequests()
-      stream = new EventSource(`${getApiUrl('/admin/stream')}?access_token=${encodeURIComponent(token)}`)
-      stream.addEventListener('override-request', event => onAdminRequest(JSON.parse(event.data)))
-    }
+    loadPendingRequests()
+    stream = new EventSource(getApiUrl('/admin/stream'), { withCredentials: true })
+    stream.addEventListener('override-request', event => onAdminRequest(JSON.parse(event.data)))
 
     return () => stream?.close()
   }, [onAdminRequest])

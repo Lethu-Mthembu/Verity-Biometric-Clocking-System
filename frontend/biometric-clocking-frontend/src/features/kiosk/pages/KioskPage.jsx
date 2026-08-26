@@ -74,9 +74,6 @@ function AdminLogin({ onClose, onLogin }) {
     setError('')
     try {
       const auth = await login({ email: email.trim(), password })
-      localStorage.setItem('token', auth.token)
-      localStorage.setItem('userId', auth.userId)
-      localStorage.setItem('role', auth.role)
       const coords = await getCurrentLocation()
       const locationName = await getLocationName(coords.latitude, coords.longitude)
       sessionStorage.setItem('currentLocation', locationName)

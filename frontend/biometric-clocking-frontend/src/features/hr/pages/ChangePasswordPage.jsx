@@ -20,10 +20,7 @@ export default function ChangePasswordPage() {
     setSaving(true)
     setError('')
     try {
-      const auth = await changeHrPassword({ currentPassword, newPassword })
-      localStorage.setItem('token', auth.token)
-      localStorage.setItem('userId', auth.userId)
-      localStorage.setItem('role', auth.role)
+      await changeHrPassword({ currentPassword, newPassword })
       navigate('/hr', { replace: true })
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to change the password.')

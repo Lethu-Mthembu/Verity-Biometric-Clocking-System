@@ -1,8 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace BiometricClockingSystem.Api.DTOs;
 
 public class LoginResponseDto
 {
+    [JsonIgnore]
     public string Token { get; set; } = string.Empty;
+    public string CsrfToken { get; set; } = string.Empty;
     
     public Guid UserId { get; set; }
 

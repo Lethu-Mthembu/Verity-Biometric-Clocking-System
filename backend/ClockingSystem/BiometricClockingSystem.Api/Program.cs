@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Security.Cryptography;
 using BiometricClockingSystem.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -40,14 +41,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
 
-    // EventSource cannot attach an Authorization header. Restrict query-string
-    // tokens to the authenticated admin notification stream only.
+    // The browser sends the session JWT only in an HttpOnly cookie. This also
+    // lets EventSource authenticate without exposing a token in its URL.
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
-            if (context.Request.Path.StartsWithSegments("/api/admin/stream"))
-                context.Token = context.Request.Query["access_token"];
+            context.Token = context.Request.Cookies["verity_session"];
 
             return Task.CompletedTask;
         },
@@ -123,6 +123,7 @@ builder.Services.AddCors(options =>
                 "https://biometric-attendance-side-web.onrender.com",
                 "http://127.0.0.1:5173"
         )
+            .AllowCredentials()
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -279,6 +280,36 @@ app.UseCors("ReactPolicy");
 app.UseRateLimiter();
 
 app.UseAuthentication();
+
+// Cookie-authenticated write requests require a token bound to the signed
+// session. Cross-origin forms cannot add this custom header, preventing CSRF.
+app.Use(async (context, next) =>
+{
+    var isUnsafeMethod = HttpMethods.IsPost(context.Request.Method)
+        || HttpMethods.IsPut(context.Request.Method)
+        || HttpMethods.IsPatch(context.Request.Method)
+        || HttpMethods.IsDelete(context.Request.Method);
+
+    if (isUnsafeMethod && context.User.Identity?.IsAuthenticated == true)
+    {
+        var expectedToken = context.User.FindFirst("csrf")?.Value;
+        var suppliedToken = context.Request.Headers["X-CSRF-Token"].ToString();
+        var matches = !string.IsNullOrWhiteSpace(expectedToken)
+            && !string.IsNullOrWhiteSpace(suppliedToken)
+            && CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(expectedToken),
+                Encoding.UTF8.GetBytes(suppliedToken));
+
+        if (!matches)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new { message = "CSRF validation failed." });
+            return;
+        }
+    }
+
+    await next();
+});
 
 app.UseAuthorization();
 

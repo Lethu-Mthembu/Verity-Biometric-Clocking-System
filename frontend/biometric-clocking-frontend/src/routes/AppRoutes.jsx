@@ -36,8 +36,8 @@ function AppRoutes() {
   };
 
   useEffect(() => {
-    const isAdmin = String(localStorage.getItem("role") || "").toLowerCase() === "admin";
-    if (!isAdmin) {
+    const isAdminPath = ["/admin", "/dashboard", "/onboard"].includes(location.pathname);
+    if (!isAdminPath) {
       return undefined;
     }
 

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BiometricClockingSystem.Api.Models;
 
 namespace BiometricClockingSystem.Api.Controllers;
 
@@ -14,10 +15,14 @@ namespace BiometricClockingSystem.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IWebHostEnvironment _environment;
+    private readonly IConfiguration _configuration;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IWebHostEnvironment environment, IConfiguration configuration)
     {
         _authService = authService;
+        _environment = environment;
+        _configuration = configuration;
     }
 
     // User registration is deliberately not public. Employees use biometric
@@ -51,7 +56,8 @@ public class AuthController : ControllerBase
         if (result == null)
             return Unauthorized("Invalid email or password.");
 
-        return Ok(result);
+        IssueSessionCookie(result.Token);
+        return Ok(ToSessionResponse(result));
     }
 
     [Authorize(Roles = "HR")]
@@ -69,7 +75,25 @@ public class AuthController : ControllerBase
         if (result is null)
             return BadRequest(new { message = "Current password is incorrect." });
 
-        return Ok(result);
+        IssueSessionCookie(result.Token);
+        return Ok(ToSessionResponse(result));
+    }
+
+    [Authorize]
+    [HttpGet("session")]
+    public IActionResult Session()
+    {
+        var roleValue = User.FindFirstValue(ClaimTypes.Role);
+        var csrfToken = User.FindFirstValue("csrf");
+        if (!Enum.TryParse<UserRole>(roleValue, out var role) || string.IsNullOrWhiteSpace(csrfToken))
+            return Unauthorized(new { message = "Invalid authentication session." });
+
+        return Ok(new AuthSessionDto
+        {
+            Role = role,
+            MustChangePassword = User.HasClaim("password_change_required", "true"),
+            CsrfToken = csrfToken
+        });
     }
 
     [Authorize]
@@ -83,6 +107,37 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Invalid user identity." });
 
         await _authService.LogoutAsync(userId);
+        DeleteSessionCookie();
         return NoContent();
+    }
+
+    private AuthSessionDto ToSessionResponse(LoginResponseDto response) => new()
+    {
+        Role = response.Role,
+        MustChangePassword = response.MustChangePassword,
+        CsrfToken = response.CsrfToken
+    };
+
+    private void IssueSessionCookie(string token) => Response.Cookies.Append("verity_session", token, new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = !_environment.IsDevelopment(),
+        SameSite = _environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.None,
+        Path = "/",
+        IsEssential = true,
+        MaxAge = TimeSpan.FromMinutes(GetAccessTokenLifetimeMinutes())
+    });
+
+    private void DeleteSessionCookie() => Response.Cookies.Delete("verity_session", new CookieOptions
+    {
+        Secure = !_environment.IsDevelopment(),
+        SameSite = _environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.None,
+        Path = "/"
+    });
+
+    private int GetAccessTokenLifetimeMinutes()
+    {
+        var configured = _configuration.GetValue<int?>("Jwt:AccessTokenMinutes") ?? 30;
+        return Math.Clamp(configured, 5, 60);
     }
 }
