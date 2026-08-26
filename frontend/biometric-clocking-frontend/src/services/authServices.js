@@ -4,6 +4,15 @@ import axios from "axios";
 // as a Secure, HttpOnly cookie and this value protects authenticated writes.
 let csrfToken = null;
 
+const clearLegacyBrowserTokens = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("role");
+};
+
+// Remove credentials left behind by the pre-cookie authentication design.
+clearLegacyBrowserTokens();
+
 const API = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
     withCredentials: true,
