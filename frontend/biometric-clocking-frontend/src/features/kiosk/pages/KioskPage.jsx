@@ -74,13 +74,22 @@ function AdminLogin({ onClose, onLogin }) {
     setError('')
     try {
       const auth = await login({ email: email.trim(), password })
-      const coords = await getCurrentLocation()
-      const locationName = await getLocationName(coords.latitude, coords.longitude)
-      sessionStorage.setItem('currentLocation', locationName)
+      try {
+        const coords = await getCurrentLocation()
+        const locationName = await getLocationName(coords.latitude, coords.longitude)
+        sessionStorage.setItem('currentLocation', locationName)
+      } catch {
+        // Location is contextual dashboard information, not an access check.
+        sessionStorage.setItem('currentLocation', 'Location unavailable')
+      }
       onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin', Boolean(auth.mustChangePassword))
 
-    } catch {
-      setError('Invalid email or password.')
+    } catch (requestError) {
+      if (requestError.response?.status === 401) {
+        setError('Invalid email or password.')
+      } else {
+        setError('Unable to sign in right now. Please try again.')
+      }
     } finally {
       setLoggingIn(false)
     }
