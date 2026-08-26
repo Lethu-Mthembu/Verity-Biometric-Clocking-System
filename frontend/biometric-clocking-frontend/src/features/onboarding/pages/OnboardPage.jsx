@@ -54,8 +54,7 @@ export default function OnboardPage({ mode = 'create', employee, onSaved, onBack
         if (!cancelled) {
           setEmployeeRecord(response.data)
         }
-      } catch (error) {
-        console.error('Failed to load employee details:', error)
+      } catch {
         if (!cancelled) setCameraError('Unable to load employee details.')
       } finally {
         if (!cancelled) setLoadingEmployee(false)
@@ -143,8 +142,8 @@ export default function OnboardPage({ mode = 'create', employee, onSaved, onBack
       } else {
         setRegisteredEmployeeNumber(response.data.employeeNumber)
       }
-    } catch (error) {
-      console.error('Failed to save employee:', error)
+    } catch {
+      // The existing form state remains available for a retry.
     } finally {
       setSaving(false)   // reset saving state regardless of outcome
     }

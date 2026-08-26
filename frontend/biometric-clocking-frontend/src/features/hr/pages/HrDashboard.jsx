@@ -72,8 +72,7 @@ export default function HrDashboardPage({ onLogout, onChangePassword }) {
         setError('')
         const response = await API.get('/Attendance/logs')
         if (!cancelled) setAttendanceLogs(Array.isArray(response.data) ? response.data : [])
-      } catch (loadError) {
-        console.error('Failed to load attendance logs:', loadError)
+      } catch {
         if (!cancelled) setError('Unable to load attendance logs.')
       } finally {
         if (!cancelled) setLoading(false)

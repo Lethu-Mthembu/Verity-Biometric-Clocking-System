@@ -30,8 +30,8 @@ function AppRoutes() {
     try {
       const data = await getEmployees();
       setEmployees(data.map(formatEmployee));
-    } catch (error) {
-      console.error("Failed to load employees:", error);
+    } catch {
+      // The dashboard keeps its existing empty state when the request fails.
     }
   };
 
@@ -46,8 +46,8 @@ function AppRoutes() {
       try {
         const data = await getEmployees();
         if (!cancelled) setEmployees(data.map(formatEmployee));
-      } catch (error) {
-        console.error("Failed to load employees:", error);
+      } catch {
+        // A later refresh can recover the directory without exposing request data.
       }
     };
 
@@ -213,11 +213,6 @@ function AppRoutes() {
                 overrideRequestId,
                 requestedClockType
               });
-
-              console.log(
-                "Admin request for:",
-                employeeNumber
-              );
             }}
           />
         }

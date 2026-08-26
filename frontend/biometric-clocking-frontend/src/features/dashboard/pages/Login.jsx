@@ -35,9 +35,8 @@ function Login() {
       } else {
         navigate("/dashboard");
       }
-    } catch (err) {
+    } catch {
       alert("Invalid email or password.");
-      console.error(err);
     }
   };
 

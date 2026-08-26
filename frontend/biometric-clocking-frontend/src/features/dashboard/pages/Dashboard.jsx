@@ -200,8 +200,8 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
     try {
       const { data } = await API.get('/Attendance/logs')
       setAttendanceLogs(Array.isArray(data) ? data : [])
-    } catch (error) {
-      console.error('Could not load attendance logs:', error)
+    } catch {
+      // The dashboard retains its current log state if refresh fails.
     }
   }, [])
 
@@ -264,8 +264,8 @@ export default function Dashboard({ employees, pendingAdminRequest, onAdminReque
       try {
         const { data } = await API.get('/admin/override-requests')
         if (data.length) onAdminRequest(data[0])
-      } catch (error) {
-        console.error('Could not load pending admin requests:', error)
+      } catch {
+        // Polling will retry; do not emit request data to the browser console.
       }
     }
 

@@ -82,8 +82,7 @@ function AdminLogin({ onClose, onLogin }) {
       sessionStorage.setItem('currentLocation', locationName)
       onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin', Boolean(auth.mustChangePassword))
 
-    } catch (error) {
-      console.error(error);
+    } catch {
       setError('Invalid email or password.')
     } finally {
       setLoggingIn(false)
@@ -392,8 +391,8 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
         setSuccessClockType(adminWaitingRequest.requestedClockType)
         setAdminWaitingRequest(null)
         setSuccess(true)
-      } catch (error) {
-        if (!stopped) console.error('Could not check override status:', error)
+      } catch {
+        // The next status poll retries without logging request details.
       }
     }
 
