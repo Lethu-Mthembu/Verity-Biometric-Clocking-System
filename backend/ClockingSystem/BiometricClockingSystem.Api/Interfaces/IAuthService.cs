@@ -6,7 +6,6 @@ namespace BiometricClockingSystem.Api.Services
         Task<LoginResponseDto?> LoginAsync(LoginDto dto);
         Task<AuthOperationResult> CreateHrAccountAsync(CreateHrAccountDto dto);
         Task<LoginResponseDto?> ChangePasswordAsync(Guid userId, ChangePasswordDto dto);
-        Task<LoginResponseDto?> CompletePasskeyChallengeAsync(Guid userId, bool enrolledNewPasskey);
         Task LogoutAsync(Guid userId);
         Task<HrAccountStatusDto> GetHrAccountStatusAsync();
     }

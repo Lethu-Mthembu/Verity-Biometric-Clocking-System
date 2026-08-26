@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Modal from '../../../shared/components/Modal'
-import { createHrAccount, getHrAccountStatus, resetHrPasskey } from '../../../services/authServices'
+import { createHrAccount, getHrAccountStatus } from '../../../services/authServices'
 
 export default function HrAccountModal({ onClose }) {
   const [status, setStatus] = useState(null)
@@ -9,7 +9,6 @@ export default function HrAccountModal({ onClose }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [resettingPasskey, setResettingPasskey] = useState(false)
 
   useEffect(() => {
     getHrAccountStatus().then(setStatus).catch(() => setError('Unable to load the HR account status.'))
@@ -35,20 +34,6 @@ export default function HrAccountModal({ onClose }) {
     }
   }
 
-  const resetPasskey = async () => {
-    if (!window.confirm('Reset the HR passkey? HR will need to sign in with their password and enrol a new passkey.')) return
-    setResettingPasskey(true)
-    setError('')
-    try {
-      await resetHrPasskey()
-      setError('HR passkey reset. HR can now sign in and set up a replacement passkey.')
-    } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Unable to reset the HR passkey.')
-    } finally {
-      setResettingPasskey(false)
-    }
-  }
-
   return (
     <Modal onClose={onClose}>
       <h2 className="text-xl font-bold text-white">HR account</h2>
@@ -68,11 +53,7 @@ export default function HrAccountModal({ onClose }) {
           <button disabled={saving || status === null} className="mt-6 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white disabled:opacity-40">{saving ? 'Creating...' : 'Create HR account'}</button>
         </form>
       )}
-      {status?.configured && <>
-        {error && <p className="mt-4 text-sm font-semibold text-slate-200">{error}</p>}
-        <button disabled={resettingPasskey} onClick={resetPasskey} className="mt-6 w-full rounded-lg border border-amber-400 px-3 py-3 text-sm font-bold text-amber-100 hover:bg-amber-500/10 disabled:opacity-40">{resettingPasskey ? 'Resetting passkey...' : 'Reset HR passkey'}</button>
-        <button onClick={onClose} className="mt-3 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white">Close</button>
-      </>}
+      {status?.configured && <button onClick={onClose} className="mt-6 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white">Close</button>}
     </Modal>
   )
 }

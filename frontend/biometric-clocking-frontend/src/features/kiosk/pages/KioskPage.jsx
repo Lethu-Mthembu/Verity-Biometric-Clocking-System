@@ -5,8 +5,7 @@ import backGr from "../../../assests/main-background.jpeg";
 import { loadFaceModels, getFaceScan } from '../../../shared/lib/faceModels'
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { getCurrentLocation, getLocationName } from "../../../services/locationService";
-import API, { clearAuthState, completePasskeyAssertion, getPasskeyAssertionOptions, login } from '../../../services/authServices'
-import { getPasskeyAssertion } from '../../../shared/lib/passkeys'
+import API, { login } from '../../../services/authServices'
 
 const initialLivenessState = () => ({ step: 'wait-open', sawOpenEyes: false })
 
@@ -68,21 +67,6 @@ function AdminLogin({ onClose, onLogin }) {
   const [showPassword, setShowPassword] = useState("");
   const [error, setError] = useState('')
   const [loggingIn, setLoggingIn] = useState(false)
-  const [passkeyPending, setPasskeyPending] = useState(false)
-
-  const storeAuth = auth => {
-    localStorage.setItem('token', auth.token)
-    localStorage.setItem('userId', auth.userId)
-    localStorage.setItem('role', auth.role)
-  }
-
-  const enterPortal = async auth => {
-    storeAuth(auth)
-    const coords = await getCurrentLocation()
-    const locationName = await getLocationName(coords.latitude, coords.longitude)
-    sessionStorage.setItem('currentLocation', locationName)
-    onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin', Boolean(auth.mustChangePassword))
-  }
 
   const loginRole = async () => {
     if (!email.trim() || !password || loggingIn) return
@@ -90,18 +74,13 @@ function AdminLogin({ onClose, onLogin }) {
     setError('')
     try {
       const auth = await login({ email: email.trim(), password })
-      if (auth.passkeySetupRequired) {
-        storeAuth(auth)
-        localStorage.setItem('role', 'PasskeySetup')
-        onLogin('passkey-setup', Boolean(auth.mustChangePassword))
-        return
-      }
-      if (auth.requiresPasskey) {
-        storeAuth(auth)
-        setPasskeyPending(true)
-        return
-      }
-      await enterPortal(auth)
+      localStorage.setItem('token', auth.token)
+      localStorage.setItem('userId', auth.userId)
+      localStorage.setItem('role', auth.role)
+      const coords = await getCurrentLocation()
+      const locationName = await getLocationName(coords.latitude, coords.longitude)
+      sessionStorage.setItem('currentLocation', locationName)
+      onLogin(String(auth.role).toLowerCase() === 'hr' ? 'hr' : 'admin', Boolean(auth.mustChangePassword))
 
     } catch (error) {
       console.error(error);
@@ -111,49 +90,29 @@ function AdminLogin({ onClose, onLogin }) {
     }
   };
 
-  const verifyPasskey = async () => {
-    setLoggingIn(true)
-    setError('')
-    try {
-      const options = await getPasskeyAssertionOptions()
-      const credential = await getPasskeyAssertion(options)
-      const auth = await completePasskeyAssertion(credential)
-      await enterPortal(auth)
-    } catch (error) {
-      clearAuthState()
-      setPasskeyPending(false)
-      setError(error.response?.data?.message || error.message || 'Passkey verification was not completed.')
-    } finally {
-      setLoggingIn(false)
-    }
-  }
-
   return (
     <Modal onClose={onClose}>
       <h2 className="text-xl font-bold text-white">Admin access</h2>
       <p className="mt-2 text-sm leading-6 text-slate-400">Sign in to manage employee records and attendance.</p>
-      {!passkeyPending && <>
-        <label className="mt-6 block text-[10px] font-bold">EMAIL OR USERNAME</label>
-        <input value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-lg bg-[#09192c] px-3 py-3 text-sm outline-none" placeholder="admin@verity.co" />
-        <label className="mt-4 block text-[10px] font-bold">PASSWORD</label>
-        <div className="password-container">
-          <input
-            type={showPassword ? "text" : "password"}
-            name="password"
-            value={password}
-            onChange={event => setPassword(event.target.value)}
-            placeholder="......"
-            className="password-input"
-          />
+      <label className="mt-6 block text-[10px] font-bold">EMAIL OR USERNAME</label>
+      <input value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-lg bg-[#09192c] px-3 py-3 text-sm outline-none" placeholder="admin@verity.co" />
+      <label className="mt-4 block text-[10px] font-bold">PASSWORD</label>
+      <div className="password-container">
+        <input
+          type={showPassword ? "text" : "password"}
+          name="password"
+          value={password}
+          onChange={event => setPassword(event.target.value)}
+          placeholder="......"
+          className="password-input"
+        />
 
-          <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
-            {showPassword ? <FaEyeSlash /> : <FaEye />}
-          </button>
-        </div>
-      </>}
-      {passkeyPending && <p className="mt-5 text-sm leading-6 text-slate-300">Password confirmed. Use the passkey on this device to finish signing in.</p>}
+        <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
+          {showPassword ? <FaEyeSlash /> : <FaEye />}
+        </button>
+      </div>
       {error && <p className="mt-3 text-xs font-bold text-rose-400">{error}</p>}
-      <button disabled={(!email.trim() || !password) && !passkeyPending || loggingIn} onClick={passkeyPending ? verifyPasskey : loginRole} className="mt-5 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white hover:bg-sky-500 disabled:opacity-40">{loggingIn ? 'Please wait...' : passkeyPending ? 'Verify passkey' : 'Log in'}</button>
+      <button disabled={!email.trim() || !password || loggingIn} onClick={loginRole} className="mt-5 w-full rounded-lg bg-sky-600 py-3 text-sm font-bold text-white hover:bg-sky-500 disabled:opacity-40">{loggingIn ? 'Logging in...' : 'Log in'}</button>
     </Modal>
   )
 }
