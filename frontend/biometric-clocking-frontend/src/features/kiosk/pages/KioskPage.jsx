@@ -39,22 +39,10 @@ function updateLiveness(landmarks, state) {
   }
   if (state.step === 'blink-open') {
     if (eyeRatio > 0.22) {
-      state.step = 'turn-head'
-      return 'Live check: turn your head left or right.'
-    }
-    return 'Live check: open your eyes.'
-  }
-  if (state.step === 'turn-head') {
-    const leftEye = landmarks[39]
-    const rightEye = landmarks[42]
-    const nose = landmarks[30]
-    if (!leftEye || !rightEye || !nose) return 'Live check: turn your head left or right.'
-    const ratio = distance(nose, leftEye) / Math.max(distance(nose, leftEye) + distance(nose, rightEye), 1)
-    if (ratio < 0.34 || ratio > 0.66) {
       state.step = 'complete'
       return 'Live check complete. Verifying face...'
     }
-    return 'Live check: turn your head left or right.'
+    return 'Live check: open your eyes.'
   }
   return 'Live check complete. Verifying face...'
 }
