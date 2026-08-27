@@ -7,7 +7,8 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { getCurrentLocation, getLocationName } from "../../../services/locationService";
 import API, { login } from '../../../services/authServices'
 
-const initialLivenessState = () => ({ step: 'wait-open', sawOpenEyes: false })
+const BLINK_WINDOW_MS = 6000
+const initialLivenessState = () => ({ step: 'wait-open', sawOpenEyes: false, blinkStartedAt: null })
 
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y)
@@ -23,11 +24,21 @@ function eyeAspectRatio(points) {
 }
 
 function updateLiveness(landmarks, state) {
+  if (state.blinkStartedAt &&
+      state.step !== 'complete' &&
+      Date.now() - state.blinkStartedAt > BLINK_WINDOW_MS) {
+    state.step = 'wait-open'
+    state.sawOpenEyes = false
+    state.blinkStartedAt = null
+    return 'Live check timed out. Look at the camera to try again.'
+  }
+
   const eyeRatio = eyeAspectRatio(landmarks)
   if (state.step === 'wait-open') {
     if (eyeRatio > 0.22) state.sawOpenEyes = true
     if (!state.sawOpenEyes) return 'Look at the camera to begin the live check...'
     state.step = 'blink'
+    state.blinkStartedAt = Date.now()
     return 'Live check: close both eyes briefly, then open them.'
   }
   if (state.step === 'blink') {
@@ -289,9 +300,24 @@ export default function KioskPage({ onAdminAccess, onAdminCall }) {
       }
 
       if (!descriptor) {
-        livenessRef.current = initialLivenessState()
+        const liveness = livenessRef.current
+        const blinkElapsed = liveness.blinkStartedAt
+          ? Date.now() - liveness.blinkStartedAt
+          : Number.POSITIVE_INFINITY
+
+        // TinyFaceDetector can briefly lose a face when both eyes are closed.
+        // During the active blink window, treat that short loss as the closed-eye
+        // phase, but still require the face to return with open eyes.
+        if (liveness.step === 'blink' && blinkElapsed <= BLINK_WINDOW_MS) {
+          liveness.step = 'blink-open'
+          setFaceStatus('Live check: open your eyes.')
+        } else if (liveness.step === 'blink-open' && blinkElapsed <= BLINK_WINDOW_MS) {
+          setFaceStatus('Live check: open your eyes.')
+        } else {
+          livenessRef.current = initialLivenessState()
+          setFaceStatus(message)
+        }
         faceCheckStartedRef.current = false   // unlock so the next interval tick can try again
-        setFaceStatus(message)   // show why it didn't work (camera starting / no face)
         return
       }
 
