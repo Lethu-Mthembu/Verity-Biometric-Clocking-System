@@ -1,12 +1,20 @@
+const geocodingApiUrl = import.meta.env.VITE_GEOCODING_API_URL?.trim();
+
 export async function getLocationName(latitude, longitude) {
-    const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-        {
-            headers: {
-                Accept: "application/json"
-            }
+    if (!geocodingApiUrl) {
+        throw new Error("VITE_GEOCODING_API_URL is not configured.");
+    }
+
+    const requestUrl = new URL(geocodingApiUrl);
+    requestUrl.searchParams.set("format", "json");
+    requestUrl.searchParams.set("lat", String(latitude));
+    requestUrl.searchParams.set("lon", String(longitude));
+
+    const response = await fetch(requestUrl, {
+        headers: {
+            Accept: "application/json"
         }
-    );
+    });
 
     if (!response.ok) {
         throw new Error("Unable to get location.");

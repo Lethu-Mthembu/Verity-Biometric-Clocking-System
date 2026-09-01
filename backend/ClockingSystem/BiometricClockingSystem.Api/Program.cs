@@ -12,14 +12,19 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+var connectionString = RequireConfiguration(builder.Configuration, "ConnectionStrings:DefaultConnection");
+var jwtKey = RequireConfiguration(builder.Configuration, "Jwt:Key");
+var jwtIssuer = RequireConfiguration(builder.Configuration, "Jwt:Issuer");
+var jwtAudience = RequireConfiguration(builder.Configuration, "Jwt:Audience");
+var allowedOrigins = GetAllowedOrigins(builder.Configuration);
+_ = RequireConfiguration(builder.Configuration, "AllowedHosts");
+
+if (jwtKey.Length < 32)
     throw new InvalidOperationException("Jwt:Key must be provided by a secure environment variable and be at least 32 characters long.");
 
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -32,8 +37,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
 
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
 
         IssuerSigningKey = new SymmetricSecurityKey(
     Encoding.UTF8.GetBytes(jwtKey)),
@@ -118,11 +123,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactPolicy", policy =>
     {
-        policy.WithOrigins(
-            "http://localhost:5173",
-                "https://biometric-attendance-side-web.onrender.com",
-                "http://127.0.0.1:5173"
-        )
+        policy.WithOrigins(allowedOrigins)
             .AllowCredentials()
             .AllowAnyHeader()
             .AllowAnyMethod();
@@ -319,3 +320,31 @@ app.Run();
 
 static string ClientPartitionKey(HttpContext context) =>
     context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+static string RequireConfiguration(IConfiguration configuration, string key)
+{
+    var value = configuration[key]?.Trim();
+    if (string.IsNullOrWhiteSpace(value))
+        throw new InvalidOperationException($"{key} must be provided through environment configuration.");
+
+    return value;
+}
+
+static string[] GetAllowedOrigins(IConfiguration configuration)
+{
+    var configuredOrigins = RequireConfiguration(configuration, "Cors:AllowedOrigins")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(origin => origin.TrimEnd('/'))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    if (configuredOrigins.Length == 0 || configuredOrigins.Any(origin =>
+        !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+        (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
+        !string.Equals(uri.GetLeftPart(UriPartial.Authority), origin, StringComparison.OrdinalIgnoreCase)))
+    {
+        throw new InvalidOperationException("Cors:AllowedOrigins must contain comma-separated HTTP(S) origins without paths.");
+    }
+
+    return configuredOrigins;
+}

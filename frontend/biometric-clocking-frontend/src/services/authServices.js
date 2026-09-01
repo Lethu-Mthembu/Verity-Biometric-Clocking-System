@@ -1,5 +1,10 @@
 import axios from "axios";
 
+const apiBaseUrl = import.meta.env.VITE_API_URL?.trim();
+if (!apiBaseUrl) {
+    throw new Error("VITE_API_URL must be configured before the application starts.");
+}
+
 // The JWT is intentionally never available to JavaScript. The API issues it
 // as a Secure, HttpOnly cookie and this value protects authenticated writes.
 let csrfToken = null;
@@ -14,7 +19,7 @@ const clearLegacyBrowserTokens = () => {
 clearLegacyBrowserTokens();
 
 const API = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: apiBaseUrl,
     withCredentials: true,
 });
 

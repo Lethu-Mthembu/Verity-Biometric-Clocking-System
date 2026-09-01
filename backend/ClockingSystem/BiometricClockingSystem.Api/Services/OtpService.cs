@@ -52,7 +52,9 @@ public sealed class OtpService : IOtpService
         if (string.IsNullOrWhiteSpace(emailAddress))
             throw new OtpDeliveryException("The employee does not have an email address for OTP delivery.");
         if (string.IsNullOrWhiteSpace(_sendGrid.SenderAddress) ||
-            string.IsNullOrWhiteSpace(_sendGrid.ApiKey))
+            string.IsNullOrWhiteSpace(_sendGrid.ApiKey) ||
+            !Uri.TryCreate(_sendGrid.ApiUrl, UriKind.Absolute, out var sendGridApiUrl) ||
+            sendGridApiUrl.Scheme != Uri.UriSchemeHttps)
             throw new OtpDeliveryException("SendGrid is not configured.");
 
         var id = Guid.NewGuid();
@@ -114,7 +116,7 @@ public sealed class OtpService : IOtpService
         {
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
-                "https://api.sendgrid.com/v3/mail/send");
+                _sendGrid.ApiUrl);
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _sendGrid.ApiKey);
             request.Content = JsonContent.Create(new

@@ -6,6 +6,7 @@ public sealed class SendGridOptions
 
     public string SenderAddress { get; init; } = string.Empty;
     public string ApiKey { get; init; } = string.Empty;
+    public string ApiUrl { get; init; } = string.Empty;
 }
 
 public sealed class OtpDeliveryException : Exception
