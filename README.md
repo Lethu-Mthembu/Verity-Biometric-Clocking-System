@@ -1,8 +1,5 @@
 # Biometric Attendance System
 
-This is an independent copy of the biometric attendance system for separate development and hosting.
-
-It has its own Git history, backend service, database, and deployment configuration. The original team repository and hosting are not used by this project.
 
 ## Live application
 
